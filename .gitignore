@@ -1,0 +1,23 @@
+# Motore di anonimizzazione (620 MB): si prepara con Scripts/prepara-motore.sh
+/Engine/
+/Engine.zip
+# Build
+/build/
+.build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+# Impostazioni locali di Claude Code
+/.claude/
+# Mai documenti veri nella repo: i file di prova con dati inventati stanno in Esempi/
+/*.xlsx
+/*.xls
+/*.docx
+/*.doc
+/*.pdf
+/*.csv
+/*.txt
+/*.md
+!/README.md
+/*.anonimizzatore
