@@ -65,10 +65,10 @@ struct CompanyEditor: View {
     @State var company: Company
 
     var body: some View {
-        EditorSheet(title: company.name.isEmpty ? "Nuovo cliente" : company.name,
+        EditorSheet(title: company.name.isEmpty ? "Nuova azienda" : company.name,
                     canSave: !company.name.trimmingCharacters(in: .whitespaces).isEmpty,
                     save: { await model.save(company) }) {
-            Section("Cliente") {
+            Section("Azienda") {
                 TextField("Ragione sociale", text: $company.name, prompt: Text("Edilnord S.r.l."))
                 Picker("Stato", selection: $company.status) {
                     ForEach(CompanyStatus.allCases) { Text($0.title).tag($0) }
@@ -119,7 +119,7 @@ struct ContactEditor: View {
                 TextField("Nome", text: $contact.firstName)
                 TextField("Cognome", text: $contact.lastName)
                 TextField("Ruolo", text: $contact.role, prompt: Text("Direttore acquisti"))
-                CompanyPicker(title: "Cliente", selection: $contact.companyID)
+                CompanyPicker(title: "Azienda", selection: $contact.companyID)
             }
             Section("Recapiti") {
                 TextField("Email", text: $contact.email)
@@ -157,19 +157,19 @@ struct DealEditor: View {
     }
 
     private var company: Binding<UUID?> {
-        Binding(get: { deal.companyID }, set: { if let id = $0 { deal.companyID = id; deal.contactID = nil } })
+        Binding(get: { deal.companyID }, set: { deal.companyID = $0; deal.contactID = nil })
     }
 
     var body: some View {
         EditorSheet(title: deal.title.isEmpty ? "Nuova trattativa" : deal.title,
-                    canSave: !deal.title.trimmingCharacters(in: .whitespaces).isEmpty && model.crm.company(deal.companyID) != nil,
+                    canSave: !deal.title.trimmingCharacters(in: .whitespaces).isEmpty,
                     save: { await model.save(deal) }) {
             Section("Trattativa") {
                 TextField("Titolo", text: $deal.title, prompt: Text("Nuovo sito web"))
-                CompanyPicker(title: "Cliente", selection: company, allowsNone: false)
+                CompanyPicker(title: "Azienda", selection: company)
                 Picker("Referente", selection: $deal.contactID) {
                     Text("Nessuno").tag(UUID?.none)
-                    ForEach(model.crm.contacts(of: deal.companyID)) { contact in
+                    ForEach(deal.companyID.map { model.crm.contacts(of: $0) } ?? model.crm.contacts.sorted { $0.fullName < $1.fullName }) { contact in
                         Text(contact.fullName).tag(Optional(contact.id))
                     }
                 }
@@ -226,7 +226,7 @@ struct ActivityEditor: View {
                 }
             }
             Section("Collegamenti") {
-                CompanyPicker(title: "Cliente", selection: $activity.companyID)
+                CompanyPicker(title: "Azienda", selection: $activity.companyID)
                 if let companyID = activity.companyID {
                     Picker("Contatto", selection: $activity.contactID) {
                         Text("Nessuno").tag(UUID?.none)

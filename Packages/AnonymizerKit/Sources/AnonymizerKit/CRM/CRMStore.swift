@@ -7,24 +7,27 @@ import Foundation
 // documenti. Ogni modifica si salva subito.
 
 public actor CRMStore {
-    static let fileName = "crm"
+    public static let fileName = "crm"
 
     public nonisolated let folder: SecureFolder
+    /// Il file cifrato del CRM («crm», o quello di un progetto).
+    public nonisolated let fileName: String
     private var database = CRMDatabase()
     private var isOpen = false
 
-    public init(folder: SecureFolder) {
+    public init(folder: SecureFolder, fileName: String = CRMStore.fileName) {
         self.folder = folder
+        self.fileName = fileName
     }
 
     @discardableResult
     public func open() throws -> CRMDatabase {
         if isOpen { return database }
-        if let data = try folder.read(Self.fileName) {
+        if let data = try folder.read(fileName) {
             do {
                 database = try JSONDecoder().decode(CRMDatabase.self, from: data)
             } catch {
-                throw SecureFolder.FolderError.unreadable(name: Self.fileName, reason: error.localizedDescription)
+                throw SecureFolder.FolderError.unreadable(name: fileName, reason: error.localizedDescription)
             }
         } else {
             try folder.unlock()
@@ -46,7 +49,7 @@ public actor CRMStore {
 
     private func save(_ copy: CRMDatabase) throws {
         guard copy != database else { return }
-        try folder.write(JSONEncoder().encode(copy), to: Self.fileName)
+        try folder.write(JSONEncoder().encode(copy), to: fileName)
         database = copy
     }
 

@@ -37,9 +37,12 @@ public enum ChatShield {
 
     """ + modelRule
 
-    /// Il testo completo che parte: istruzioni, conversazione precedente e nuova richiesta, tutto anonimizzato.
-    public static func transcript(history: [ChatMessage], next: ChatMessage) -> String {
+    /// Il testo completo che parte: istruzioni, conversazione precedente e nuova richiesta, tutto anonimizzato. Nella chat
+    /// di un progetto ci sono anche le istruzioni sui suoi documenti (`project`) e i passaggi già fatti in questa
+    /// risposta (`steps`: le risposte intermedie e i documenti letti).
+    public static func transcript(history: [ChatMessage], next: ChatMessage, project: String? = nil, steps: [String] = []) -> String {
         var parts = [system]
+        if let project { parts.append(project) }
         if !history.isEmpty {
             let previous = history.map { message in
                 (message.role == .user ? "Utente: " : "Assistente: ") + rendered(message)
@@ -47,7 +50,9 @@ public enum ChatShield {
             parts.append("Conversazione precedente:\n" + previous.joined(separator: "\n\n"))
         }
         parts.append("Richiesta:\n" + rendered(next))
-        parts.append("Rispondi solo con il testo della risposta, senza usare strumenti né modificare file.")
+        parts += steps
+        parts.append(project == nil ? "Rispondi solo con il testo della risposta, senza usare strumenti né modificare file."
+                     : "Rispondi seguendo le istruzioni sui documenti del progetto. Non usare strumenti e non modificare file.")
         return parts.joined(separator: "\n\n")
     }
 

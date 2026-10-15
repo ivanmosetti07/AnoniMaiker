@@ -8,11 +8,11 @@ let appLog = Logger(subsystem: "com.ivanmosetti.anonimizzatoreai", category: "ap
 
 // MARK: - Lo stato dell'app
 //
-// Il motore (dentro l'app), la cartella cifrata con dizionario, CRM e chat, le impostazioni, i due banchi di lavoro
-// («Anonimizza» e «Riconverti»), la chat con GPT e la navigazione. Tutto resta sul Mac.
+// Il motore (dentro l'app), la cartella cifrata, i progetti e la navigazione. Ogni progetto ha i suoi documenti, il suo
+// CRM, il suo dizionario e le sue conversazioni: l'app lavora sempre dentro il progetto aperto. Tutto resta sul Mac.
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case anonymize, reveal, chat, companies, contacts, deals, activities, dictionary
+    case anonymize, reveal, documents, people, companies, deals, activities, dictionary
 
     var id: String { rawValue }
 
@@ -20,9 +20,9 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .anonymize: "Anonimizza"
         case .reveal: "Riconverti"
-        case .chat: "Chat con GPT"
-        case .companies: "Clienti"
-        case .contacts: "Contatti"
+        case .documents: "Documenti"
+        case .people: "Persone"
+        case .companies: "Aziende"
         case .deals: "Trattative"
         case .activities: "Attività"
         case .dictionary: "Dizionario"
@@ -33,9 +33,9 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .anonymize: "eye.slash"
         case .reveal: "arrow.uturn.backward.circle"
-        case .chat: "bubble.left.and.text.bubble.right"
+        case .documents: "doc.on.doc"
+        case .people: "person.2"
         case .companies: "building.2"
-        case .contacts: "person.2"
         case .deals: "eurosign.circle"
         case .activities: "checklist"
         case .dictionary: "character.book.closed"
@@ -91,6 +91,8 @@ final class Workspace {
     var outputPreview: DocumentPreview?
     /// Pagine del PDF lette con il riconoscimento del testo.
     var recognizedPages = 0
+    /// Cosa è successo nel progetto: «Salvato nei documenti · 3 persone nuove nel CRM».
+    var projectNote: String?
 
     init(mode: Mode) {
         self.mode = mode
@@ -117,6 +119,7 @@ final class Workspace {
         outputData = nil
         outputPreview = nil
         recognizedPages = 0
+        projectNote = nil
     }
 }
 
@@ -151,6 +154,16 @@ final class AppModel {
     var alert: String?
     var section: AppSection = .anonymize
     var companiesPath: [CRMRoute] = []
+    var documentsPath: [CRMRoute] = []
+    /// I progetti, dal più recente, e quello aperto (nil: la schermata dei progetti).
+    var projects: [Project] = []
+    var currentProjectID: UUID? {
+        didSet { UserDefaults.standard.set(currentProjectID?.uuidString, forKey: Self.currentProjectKey) }
+    }
+    /// La chat a destra.
+    var showsChat = false
+    /// Quanto c'è in tutti i progetti (per la copia di sicurezza), aggiornato quando serve.
+    var totals: BackupSummary?
     var backupStep: BackupStep?
     var lastBackup: Date? {
         didSet { UserDefaults.standard.set(lastBackup, forKey: Self.lastBackupKey) }
@@ -160,27 +173,23 @@ final class AppModel {
     /// Il cliente con cui filtrare il dizionario (nil: tutti).
     var dictionaryClient: UUID?
 
-    let anonymizeSpace = Workspace(mode: .anonymize)
-    let revealSpace = Workspace(mode: .reveal)
     let chat = ChatState()
     let updates = UpdateState()
     /// La guida (al primo avvio o da Aiuto).
     var showsGuide = false
-    /// La guida chiede di aprire subito la scheda per una nuova azienda.
-    var requestsNewCompany = false
+    /// La guida chiede di creare subito un progetto.
+    var requestsNewProject = false
 
     @ObservationIgnored let engine: PIIEngine?
     @ObservationIgnored let folder = SecureFolder()
-    @ObservationIgnored let store: VaultStore
-    @ObservationIgnored let crmStore: CRMStore
-    @ObservationIgnored let chatStore: ChatStore
+    @ObservationIgnored let projectStore: ProjectStore
     @ObservationIgnored private var started = false
+    /// I banchi «Anonimizza» e «Riconverti» di ogni progetto (restano com'erano quando si torna al progetto).
+    @ObservationIgnored private var workspaces: [UUID: (anonymize: Workspace, reveal: Workspace)] = [:]
 
     init() {
         engine = PIIEngine.bundled()
-        store = VaultStore(folder: folder)
-        crmStore = CRMStore(folder: folder)
-        chatStore = ChatStore(folder: folder)
+        projectStore = ProjectStore(folder: folder)
         settings = Self.loadSettings()
         lastBackup = UserDefaults.standard.object(forKey: Self.lastBackupKey) as? Date
     }
@@ -188,6 +197,33 @@ final class AppModel {
     var isVaultReady: Bool {
         if case .ready = vaultState { true } else { false }
     }
+
+    // MARK: Il progetto aperto
+
+    static let currentProjectKey = "progetto.corrente"
+    /// Senza progetto aperto le sezioni non si vedono: questo identificativo non arriva mai a un file.
+    private static let noProject = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+    var currentProject: Project? { projects.first { $0.id == currentProjectID } }
+    var hasProject: Bool { currentProject != nil }
+
+    /// Gli archivi del progetto aperto.
+    var space: ProjectSpace { projectStore.space(currentProjectID ?? Self.noProject) }
+    var store: VaultStore { space.vault }
+    var crmStore: CRMStore { space.crm }
+    var chatStore: ChatStore { space.chat }
+
+    private func spaces(for id: UUID) -> (anonymize: Workspace, reveal: Workspace) {
+        if let existing = workspaces[id] { return existing }
+        let created = (Workspace(mode: .anonymize), Workspace(mode: .reveal))
+        workspaces[id] = created
+        return created
+    }
+
+    func removeWorkspaces(of id: UUID) { workspaces[id] = nil }
+
+    var anonymizeSpace: Workspace { spaces(for: currentProjectID ?? Self.noProject).anonymize }
+    var revealSpace: Workspace { spaces(for: currentProjectID ?? Self.noProject).reveal }
 
     static var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
@@ -223,13 +259,16 @@ final class AppModel {
         }
     }
 
-    /// Apre (o riapre, dopo un ripristino) dizionario e CRM.
+    /// Apre (o riapre, dopo un ripristino) i progetti e quello che era aperto.
     func openData() async {
         do {
-            vault = try await store.reload()
-            crm = try await crmStore.reload()
-            chat.conversations = try await chatStore.reload()
+            projects = try await projectStore.reload()
+            workspaces = [:]
+            let saved = UserDefaults.standard.string(forKey: Self.currentProjectKey).flatMap(UUID.init(uuidString:))
+            currentProjectID = projects.first { $0.id == saved }?.id ?? projects.first?.id
+            try await loadProject()
             vaultState = .ready(folder.protection ?? .file)
+            _ = await allProjectsSummary()
         } catch {
             appLog.error("Dati non aperti: \(error.localizedDescription, privacy: .public)")
             vaultState = .failed(error.localizedDescription)
@@ -261,12 +300,12 @@ final class AppModel {
             guard let engine else { return }
             let anonymizer = Anonymizer(engine: engine, store: store)
             let settings = settings
-            let client = space.clientID.flatMap { crm.company($0)?.id }
-            let known = client.map { crm.knownValues(for: $0) } ?? []
+            // Quello che il CRM del progetto conosce si nasconde anche dove il motore non lo vede.
+            let known = crm.knownValues()
             space.task = Task {
                 defer { finish(space) }
                 do {
-                    let result = try await anonymizer.anonymize(text, settings: settings, client: client, known: known) { value in
+                    let result = try await anonymizer.anonymize(text, settings: settings, known: known) { value in
                         Task { @MainActor in if space.isRunning { space.progress = value } }
                     }
                     show(result.text, highlights: Revealer.placeholderRanges(in: result.text), outcome: .anonymized(result.report),
@@ -300,18 +339,21 @@ final class AppModel {
             guard let engine else { return }
             let anonymizer = Anonymizer(engine: engine, store: store)
             let settings = settings
-            let client = space.clientID.flatMap { crm.company($0)?.id }
-            let known = client.map { crm.knownValues(for: $0) } ?? []
+            let known = crm.knownValues()
             space.task = Task {
                 defer { finish(space) }
                 do {
                     let outcome = try await anonymizer.anonymizeFile(source.data, format: source.format, fileExtension: ext, settings: settings,
-                                                                     client: client, known: known) { value in
+                                                                     known: known) { value in
                         Task { @MainActor in if space.isRunning { space.progress = value } }
                     }
                     showFile(outcome, highlights: Revealer.placeholderRanges(in: outcome.preview.plainText),
                              outcome: .anonymized(outcome.report ?? AnonymizationReport(used: [], newEntries: 0)), in: space)
                     await refreshVault()
+                    // Un file anonimizzato in un progetto entra da solo nei suoi documenti, e le persone nel suo CRM.
+                    space.projectNote = try await archive(original: source.data, format: source.format, fileName: source.url.lastPathComponent,
+                                                          anonymized: outcome.data, anonymizedText: outcome.preview.plainText,
+                                                          report: outcome.report)
                 } catch is CancellationError {
                 } catch {
                     alert = error.localizedDescription

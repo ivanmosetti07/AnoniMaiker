@@ -7,41 +7,32 @@ struct ContentView: View {
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
-            List(selection: Binding<AppSection?>(get: { model.section }, set: { if let value = $0 { model.section = value } })) {
-                Section("Lavora") {
-                    row(.anonymize)
-                    row(.reveal)
-                    row(.chat)
-                }
-                Section("CRM") {
-                    row(.companies, count: model.crm.companies.count)
-                    row(.contacts, count: model.crm.contacts.count)
-                    row(.deals, count: model.crm.deals.count { $0.stage.isOpen })
-                    row(.activities, count: model.crm.openTasks.count, alert: model.crm.openTasks.contains { $0.isOverdue() })
-                }
-                Section("Archivio") {
-                    row(.dictionary, count: model.vault.count)
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 210, ideal: 230)
-            .safeAreaInset(edge: .top) {
-                Image("Logotipo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 4)
-                    .padding(.bottom, 6)
-                    .accessibilityLabel("AnoniMaiker")
-            }
-            .safeAreaInset(edge: .bottom) { StatusFooter() }
+            Sidebar()
+                .navigationSplitViewColumnWidth(min: 220, ideal: 240)
         } detail: {
             VStack(spacing: 0) {
                 DataBanner()
-                detail
+                if model.hasProject {
+                    detail
+                } else {
+                    ProjectsView()
+                }
             }
             .sheet(isPresented: Bindable(model.updates).isPresented) { UpdateSheet() }
+        }
+        .inspector(isPresented: $model.showsChat) {
+            ChatPanel()
+                .inspectorColumnWidth(min: 320, ideal: 400, max: 640)
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(model.showsChat ? "Nascondi la chat" : "Chat con GPT", systemImage: "bubble.left.and.text.bubble.right") {
+                    model.showsChat.toggle()
+                }
+                .keyboardShortcut("j")
+                .disabled(!model.hasProject)
+                .help("Chat con GPT sui documenti del progetto (⌘J)")
+            }
         }
         .alert("Attenzione", isPresented: Binding(get: { model.alert != nil }, set: { if !$0 { model.alert = nil } })) {
             Button("OK") {}
@@ -62,21 +53,84 @@ struct ContentView: View {
         switch model.section {
         case .anonymize: WorkspaceView(space: model.anonymizeSpace)
         case .reveal: WorkspaceView(space: model.revealSpace)
-        case .chat: ChatView()
+        case .documents:
+            NavigationStack(path: $model.documentsPath) {
+                DocumentsView()
+                    .navigationDestination(for: CRMRoute.self) { route in destination(route) }
+            }
         case .companies:
             NavigationStack(path: $model.companiesPath) {
                 CompaniesView()
-                    .navigationDestination(for: CRMRoute.self) { route in
-                        switch route {
-                        case .company(let id): CompanyDetailView(companyID: id)
-                        case .document(let id): DocumentDetailView(documentID: id)
-                        }
-                    }
+                    .navigationDestination(for: CRMRoute.self) { route in destination(route) }
             }
-        case .contacts: ContactsView()
+        case .people: ContactsView()
         case .deals: DealsView()
         case .activities: ActivitiesView()
         case .dictionary: DictionaryView()
+        }
+    }
+
+    @ViewBuilder private func destination(_ route: CRMRoute) -> some View {
+        switch route {
+        case .company(let id): CompanyDetailView(companyID: id)
+        case .document(let id): DocumentDetailView(documentID: id)
+        }
+    }
+}
+
+/// La barra laterale: il progetto aperto (e il menu per cambiarlo), le sue sezioni, lo stato e le impostazioni.
+struct Sidebar: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Image("Logotipo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 18)
+                .padding(.top, 4)
+                .padding(.bottom, 10)
+                .accessibilityLabel("AnoniMaiker")
+            ProjectSwitcher()
+                .padding(.horizontal, 10)
+                .padding(.bottom, 6)
+            if model.hasProject {
+                List(selection: Binding<AppSection?>(get: { model.section }, set: { if let value = $0 { model.section = value } })) {
+                    Section("Lavora") {
+                        row(.anonymize)
+                        row(.reveal)
+                        row(.documents, count: model.crm.documents.count)
+                    }
+                    Section("CRM del progetto") {
+                        row(.people, count: model.crm.contacts.count)
+                        row(.companies, count: model.crm.companies.count)
+                        row(.deals, count: model.crm.deals.count { $0.stage.isOpen })
+                        row(.activities, count: model.crm.openTasks.count, alert: model.crm.openTasks.contains { $0.isOverdue() })
+                    }
+                    Section("Archivio") {
+                        row(.dictionary, count: model.vault.count)
+                    }
+                }
+            } else {
+                List {
+                    Text("Apri un progetto o creane uno nuovo: dentro trovi anonimizzatore, riconvertitore, documenti e CRM.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .listRowSeparator(.hidden)
+                }
+            }
+            Divider()
+            StatusFooter()
+            SettingsLink {
+                Label("Impostazioni", systemImage: "gearshape")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+            .help("Impostazioni di AnoniMaiker (⌘,)")
         }
     }
 
@@ -96,6 +150,57 @@ struct ContentView: View {
             Image(systemName: section.symbol)
         }
         .tag(section)
+    }
+}
+
+/// In cima alla barra laterale: il progetto aperto, con il menu per cambiarlo, crearne uno o tornare all'elenco.
+struct ProjectSwitcher: View {
+    @Environment(AppModel.self) private var model
+    @State private var naming: ProjectNaming?
+
+    var body: some View {
+        Menu {
+            ForEach(model.projects) { project in
+                Button {
+                    model.selectProject(project.id)
+                } label: {
+                    if project.id == model.currentProjectID { Label(project.name, systemImage: "checkmark") } else { Text(project.name) }
+                }
+            }
+            if !model.projects.isEmpty { Divider() }
+            Button("Nuovo progetto…", systemImage: "plus") { naming = .create }
+            if let project = model.currentProject {
+                Button("Rinomina «\(project.name)»…", systemImage: "pencil") { naming = .rename(project) }
+            }
+            Divider()
+            Button("Tutti i progetti", systemImage: "square.grid.2x2") { model.showProjects() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.currentProject?.name ?? "Nessun progetto aperto")
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                    Text(model.hasProject ? "Progetto" : "Scegli o crea un progetto")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(.secondary.opacity(0.10), in: .rect(cornerRadius: 8))
+            .contentShape(.rect)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .disabled(!model.isVaultReady)
+        .sheet(item: $naming) { ProjectNameSheet(naming: $0) }
     }
 }
 

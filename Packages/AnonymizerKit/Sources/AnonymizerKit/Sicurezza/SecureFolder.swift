@@ -38,7 +38,7 @@ public final class SecureFolder: @unchecked Sendable {
     public static let sealedExtension = "sigillato"
     static let keyName = "chiave.json"
     /// Le sottocartelle con file cifrati (le altre, come quelle messe da parte, si ignorano).
-    static let managedFolders = ["documenti"]
+    static let managedFolders = ["documenti", "progetti"]
 
     public let directory: URL
     private let preferred: KeyProtection
@@ -51,9 +51,13 @@ public final class SecureFolder: @unchecked Sendable {
         preferred = protection
     }
 
-    /// Resta la cartella del nome di prima dell'app, dove stanno già i dati.
+    /// Resta la cartella del nome di prima dell'app, dove stanno già i dati. Per le prove, `ANONIMAIKER_DATI` nell'ambiente
+    /// indica un'altra cartella (i dati veri non si toccano).
     public static var defaultDirectory: URL {
-        URL.applicationSupportDirectory.appending(path: "Anonimizzatore AI", directoryHint: .isDirectory)
+        if let path = ProcessInfo.processInfo.environment["ANONIMAIKER_DATI"], !path.isEmpty {
+            return URL(filePath: path, directoryHint: .isDirectory)
+        }
+        return URL.applicationSupportDirectory.appending(path: "Anonimizzatore AI", directoryHint: .isDirectory)
     }
 
     /// Chi custodisce la chiave, una volta sbloccata.

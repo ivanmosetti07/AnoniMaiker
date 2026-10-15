@@ -1,7 +1,7 @@
 import AnonymizerKit
 import SwiftUI
 
-// MARK: - Contatti, trattative e attività di tutti i clienti
+// MARK: - Persone, trattative e attività del progetto
 
 struct ContactsView: View {
     @Environment(AppModel.self) private var model
@@ -23,18 +23,18 @@ struct ContactsView: View {
         Group {
             if model.crm.contacts.isEmpty {
                 ContentUnavailableView {
-                    Label("Nessun contatto", systemImage: "person.2")
+                    Label("Nessuna persona", systemImage: "person.2")
                 } description: {
-                    Text("Le persone dei tuoi clienti: nome, ruolo, recapiti. Il CRM le conosce, quindi si nascondono anche dove il motore non le vede.")
+                    Text("Le persone trovate nei documenti del progetto arrivano qui da sole, con email e telefoni. Il CRM le conosce, quindi si nascondono anche dove il motore non le vede.")
                 } actions: {
-                    Button("Nuovo contatto") { editing = Contact() }
+                    Button("Nuova persona") { editing = Contact() }
                 }
             } else {
                 Table(contacts, selection: $selection) {
                     TableColumn("Nome") { contact in Text(contact.fullName).fontWeight(.medium) }
                         .width(min: 140, ideal: 180)
                     TableColumn("Ruolo") { contact in Text(contact.role) }
-                    TableColumn("Cliente") { contact in Text(model.crm.company(contact.companyID)?.name ?? "—") }
+                    TableColumn("Azienda") { contact in Text(model.crm.company(contact.companyID)?.name ?? "—") }
                     TableColumn("Email") { contact in Text(contact.email).textSelection(.enabled) }
                     TableColumn("Telefono") { contact in Text(contact.mobile.isEmpty ? contact.phone : contact.mobile).monospacedDigit() }
                 }
@@ -42,7 +42,7 @@ struct ContactsView: View {
                     if let id = ids.first, let contact = model.crm.contact(id) {
                         Button("Modifica…") { editing = contact }
                         if let companyID = contact.companyID {
-                            Button("Apri il cliente") { model.openCompany(companyID) }
+                            Button("Apri l'azienda") { model.openCompany(companyID) }
                         }
                         Divider()
                         Button("Elimina", role: .destructive) { Task { await model.deleteContact(id) } }
@@ -52,11 +52,11 @@ struct ContactsView: View {
                 }
             }
         }
-        .navigationTitle("Contatti")
+        .navigationTitle("Persone")
         .navigationSubtitle(model.crm.contacts.isEmpty ? "" : "\(model.crm.contacts.count)")
-        .searchable(text: $search, prompt: "Cerca nome, email, ruolo o cliente")
+        .searchable(text: $search, prompt: "Cerca nome, email, ruolo o azienda")
         .toolbar {
-            Button("Nuovo contatto", systemImage: "plus") { editing = Contact() }
+            Button("Nuova persona", systemImage: "plus") { editing = Contact() }
                 .disabled(!model.isVaultReady)
         }
         .sheet(item: $editing) { ContactEditor(contact: $0) }
@@ -119,7 +119,7 @@ struct DealsView: View {
                 ContentUnavailableView {
                     Label(filter == .open ? "Nessuna trattativa aperta" : "Nessuna trattativa", systemImage: "eurosign.circle")
                 } description: {
-                    Text(model.crm.companies.isEmpty ? "Aggiungi prima un cliente: ogni trattativa appartiene a un cliente." : "Preventivi e opportunità dei tuoi clienti.")
+                    Text(model.crm.companies.isEmpty ? "Le opportunità e i preventivi del progetto, con importo, fase e probabilità." : "Preventivi e opportunità dei tuoi clienti.")
                 }
                 .frame(maxHeight: .infinity)
             } else {
@@ -128,7 +128,7 @@ struct DealsView: View {
                         .onTapGesture(count: 2) { editing = deal }
                         .contextMenu {
                             Button("Modifica…") { editing = deal }
-                            Button("Apri il cliente") { model.openCompany(deal.companyID) }
+                            Button("Apri l'azienda") { model.openCompany(deal.companyID) }
                             Divider()
                             Button("Elimina", role: .destructive) { Task { await model.deleteDeal(deal.id) } }
                         }
@@ -138,10 +138,10 @@ struct DealsView: View {
         .navigationTitle("Trattative")
         .toolbar {
             Button("Nuova trattativa", systemImage: "plus") {
-                if let first = model.companyChoices.first { editing = Deal(companyID: first.id) }
+                editing = Deal()
             }
-            .disabled(model.crm.companies.isEmpty || !model.isVaultReady)
-            .help(model.crm.companies.isEmpty ? "Aggiungi prima un cliente" : "Nuova trattativa")
+            .disabled(!model.isVaultReady)
+            .help(model.crm.companies.isEmpty ? "Nuova trattativa" : "Nuova trattativa")
         }
         .sheet(item: $editing) { DealEditor(deal: $0) }
     }
@@ -177,7 +177,7 @@ struct ActivitiesView: View {
                         .contextMenu {
                             Button("Modifica…") { editing = activity }
                             if let companyID = activity.companyID {
-                                Button("Apri il cliente") { model.openCompany(companyID) }
+                                Button("Apri l'azienda") { model.openCompany(companyID) }
                             }
                             Divider()
                             Button("Elimina", role: .destructive) { Task { await model.deleteActivity(activity.id) } }

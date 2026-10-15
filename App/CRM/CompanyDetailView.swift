@@ -77,22 +77,15 @@ struct CompanyDetailView: View {
         .sheet(item: $editingDeal) { DealEditor(deal: $0) }
         .sheet(item: $editingActivity) { ActivityEditor(activity: $0) }
         .sheet(isPresented: $showingDossier) { DossierSheet(companyID: company.id) }
-        .confirmationDialog("Eliminare \(company.name)?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
-            Button("Elimina, tieni i dati nel dizionario", role: .destructive) {
-                Task { await model.deleteCompany(company.id, removeFromDictionary: false) }
-            }
-            Button("Elimina anche dal dizionario", role: .destructive) {
-                Task { await model.deleteCompany(company.id, removeFromDictionary: true) }
-            }
+        .confirmationDialog("Togliere \(company.name) dal CRM?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
+            Button("Togli l'azienda", role: .destructive) { Task { await model.deleteCompany(company.id) } }
         } message: {
-            let counts = model.crm.removalCounts(of: company.id)
-            Text("Se ne vanno anche \(counts.contacts) contatti, \(counts.deals) trattative, \(counts.activities) note e attività e \(counts.documents) documenti. "
-                 + "Togliendo i suoi dati dal dizionario, i file anonimizzati di questo cliente non si potranno più riconvertire.")
+            Text("Persone, trattative, attività e documenti restano nel progetto, senza questa azienda. Il dizionario non cambia.")
         }
     }
 }
 
-/// In cima alla scheda: nome, stato e numeri del cliente.
+/// In cima alla scheda: nome, stato e numeri dell'azienda.
 private struct CompanyHeader: View {
     @Environment(AppModel.self) private var model
     let company: Company
@@ -313,7 +306,7 @@ struct DocumentRow: View {
                 Badge(text: "Da anonimizzare", color: .orange)
             }
             if !document.answers.isEmpty {
-                Badge(text: document.answers.count == 1 ? "1 risposta" : "\(document.answers.count) risposte", color: .indigo)
+                Badge(text: document.answers.count == 1 ? "1 versione AI" : "\(document.answers.count) versioni AI", color: .indigo)
             }
         }
         .padding(.vertical, 4)

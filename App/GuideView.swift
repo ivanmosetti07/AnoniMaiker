@@ -7,7 +7,7 @@ import SwiftUI
 // la copia di sicurezza (da fare subito), il primo cliente, il primo file, la chat con GPT.
 
 enum GuideAction {
-    case backup, addClient, anonymize, chat
+    case backup, createProject, anonymize, chat
 }
 
 struct GuideView: View {
@@ -24,7 +24,7 @@ struct GuideView: View {
                 case 0: welcome
                 case 1: privacy
                 case 2: backup
-                case 3: clients
+                case 3: projects
                 case 4: anonymize
                 case 5: chat
                 default: ready
@@ -143,12 +143,12 @@ struct GuideView: View {
         }
     }
 
-    private var clients: some View {
-        page(title: "I tuoi clienti nel CRM", symbol: "building.2") {
-            point("building.2", "Clienti e contatti", "Per ogni cliente inserisci ragione sociale, partita IVA e referenti: l'app li nasconde anche dove il motore non li riconoscerebbe.")
-            point("doc.on.doc", "Documenti del cliente", "Archivia contratti, preventivi ed Excel: per ognuno tieni l'originale, la versione anonimizzata e le risposte dell'AI.")
-            point("eurosign.circle", "Trattative, note e attività", "Con fase, importo, scadenze. La scheda del cliente si può dare all'AI già anonimizzata.")
-            Button("Aggiungi il primo cliente") { close(then: .addClient) }
+    private var projects: some View {
+        page(title: "Si lavora per progetti", symbol: "folder") {
+            point("folder", "Un progetto per ogni lavoro", "Un cliente, un evento, una pratica. Apri il progetto e dentro trovi subito «Anonimizza», «Riconverti» e i suoi «Documenti», ognuno con l'originale, la versione anonimizzata e le modifiche dell'AI.")
+            point("person.2", "Il CRM si riempie da solo", "Le persone e le aziende trovate nei documenti del progetto entrano nel suo CRM, con email e telefoni della stessa riga. Trattative e attività le aggiungi tu.")
+            point("character.book.closed", "Ogni progetto ha il suo dizionario", "I segnaposto di un progetto valgono solo lì: un file si riconverte dentro il progetto da cui viene.")
+            Button("Crea il primo progetto") { close(then: .createProject) }
                 .controlSize(.large)
                 .padding(.top, 4)
         }
@@ -156,7 +156,7 @@ struct GuideView: View {
 
     private var anonymize: some View {
         page(title: "Anonimizzare e riconvertire", symbol: "arrow.left.arrow.right") {
-            point("1.circle", "Anonimizza", "Incolla un testo o trascina un file (Testo, Markdown, CSV, Excel, Word, PDF) nel banco «Anonimizza». Scegli il cliente, se c'è.")
+            point("1.circle", "Anonimizza", "Nel progetto, incolla un testo o trascina un file (Testo, Markdown, CSV, Excel, Word, PDF) nel banco «Anonimizza»: il file entra da solo nei documenti del progetto.")
             point("2.circle", "Usa l'AI che preferisci", "Copia o salva il risultato con i segnaposto e dallo a ChatGPT, Claude o altri. Formattazione e celle restano come nell'originale.")
             point("3.circle", "Riconverti", "Incolla la risposta (o il file che ti restituisce) nel banco «Riconverti»: i segnaposto tornano i dati veri.")
             Button("Prova adesso") { close(then: .anonymize) }
@@ -166,8 +166,9 @@ struct GuideView: View {
     }
 
     private var chat: some View {
-        page(title: "Chat con GPT (facoltativa)", symbol: "bubble.left.and.text.bubble.right") {
-            point("person.badge.key", "Con il tuo abbonamento ChatGPT", "Ognuno collega il proprio account, con un clic: l'accesso si fa sul sito di OpenAI e nell'app non ci sono chiavi né password. Domanda e allegati partono già anonimizzati, la risposta torna con i dati veri.")
+        page(title: "La chat con GPT, a destra", symbol: "bubble.left.and.text.bubble.right") {
+            point("doc.text.magnifyingglass", "Lavora sui documenti del progetto", "Si apre a destra con ⌘J. GPT trova e legge i documenti del progetto (solo anonimizzati) e propone modifiche o documenti nuovi: li applichi tu con un clic, come nuove versioni.")
+            point("person.badge.key", "Con il tuo abbonamento ChatGPT", "Ognuno collega il proprio account, con un clic: l'accesso si fa sul sito di OpenAI e nell'app non ci sono chiavi né password.")
             ChatGPTConnectView()
                 .padding(.leading, 40)
             Button("Apri la chat") { close(then: .chat) }
@@ -230,14 +231,13 @@ extension AppModel {
                 try? await Task.sleep(for: .milliseconds(400))
                 startExport()
             }
-        case .addClient:
-            section = .companies
-            companiesPath = []
-            requestsNewCompany = true
+        case .createProject:
+            showProjects()
+            requestsNewProject = true
         case .anonymize:
             section = .anonymize
         case .chat:
-            section = .chat
+            if hasProject { showsChat = true } else { showProjects() }
         }
     }
 }

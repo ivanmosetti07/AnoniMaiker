@@ -21,9 +21,11 @@ public struct BackupSummary: Codable, Sendable, Equatable {
     public var deals: Int
     public var activities: Int
     public var documents: Int
+    /// I progetti (nelle copie delle versioni senza progetti manca).
+    public var projects: Int?
 
     public init(created: Date = .now, appVersion: String, dictionaryEntries: Int, companies: Int, contacts: Int, deals: Int,
-                activities: Int, documents: Int) {
+                activities: Int, documents: Int, projects: Int? = nil) {
         self.created = created
         self.appVersion = appVersion
         self.dictionaryEntries = dictionaryEntries
@@ -32,6 +34,15 @@ public struct BackupSummary: Codable, Sendable, Equatable {
         self.deals = deals
         self.activities = activities
         self.documents = documents
+        self.projects = projects
+    }
+
+    /// Il riepilogo di tutti i progetti insieme.
+    public init(projects: Int, vaults: [Vault], crms: [CRMDatabase], appVersion: String, created: Date = .now) {
+        self.init(created: created, appVersion: appVersion, dictionaryEntries: vaults.map(\.count).reduce(0, +),
+                  companies: crms.map(\.companies.count).reduce(0, +), contacts: crms.map(\.contacts.count).reduce(0, +),
+                  deals: crms.map(\.deals.count).reduce(0, +), activities: crms.map(\.activities.count).reduce(0, +),
+                  documents: crms.map(\.documents.count).reduce(0, +), projects: projects)
     }
 
     public init(vault: Vault, crm: CRMDatabase, appVersion: String, created: Date = .now) {
@@ -42,9 +53,10 @@ public struct BackupSummary: Codable, Sendable, Equatable {
     /// «120 voci nel dizionario, 12 aziende, 30 contatti…»
     public var description: String {
         func part(_ count: Int, _ one: String, _ many: String) -> String { "\(count) \(count == 1 ? one : many)" }
-        return [part(dictionaryEntries, "voce nel dizionario", "voci nel dizionario"), part(companies, "cliente", "clienti"),
-                part(contacts, "contatto", "contatti"), part(deals, "trattativa", "trattative"),
-                part(activities, "nota o attività", "note e attività"), part(documents, "documento", "documenti")]
+        let head = projects.map { [part($0, "progetto", "progetti")] } ?? []
+        return (head + [part(dictionaryEntries, "voce nel dizionario", "voci nel dizionario"), part(companies, "azienda", "aziende"),
+                part(contacts, "persona", "persone"), part(deals, "trattativa", "trattative"),
+                part(activities, "nota o attività", "note e attività"), part(documents, "documento", "documenti")])
             .joined(separator: ", ")
     }
 }

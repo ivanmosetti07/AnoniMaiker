@@ -17,7 +17,16 @@ struct AnonimizzatoreApp: App {
         .defaultSize(width: 1200, height: 760)
         .commands {
             // Una finestra sola: niente «Nuova finestra».
-            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .newItem) {
+                Button("Nuovo progetto…") {
+                    model.showProjects()
+                    model.requestsNewProject = true
+                }
+                .keyboardShortcut("n")
+                .disabled(!model.isVaultReady)
+                Button("Tutti i progetti") { model.showProjects() }
+                    .keyboardShortcut("p", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .appInfo) {
                 Button("Informazioni su AnoniMaiker") { AboutPanel.show() }
             }

@@ -2,11 +2,11 @@ import AnonymizerKit
 import AppKit
 import Foundation
 
-// MARK: - Il CRM dell'app
+// MARK: - Il CRM del progetto
 //
-// Ogni modifica passa dall'archivio cifrato e torna come CRM aggiornato. Dentro la scheda di un cliente
-// l'anonimizzazione usa anche i dati che il CRM conosce (ragione sociale, partita IVA, contatti) e lega le voci del
-// dizionario al cliente.
+// Ogni modifica passa dall'archivio cifrato del progetto e torna come CRM aggiornato. L'anonimizzazione usa anche i
+// dati che il CRM del progetto conosce (ragioni sociali, partite IVA, persone), così si nascondono anche dove il motore
+// non li riconosce.
 
 extension AppModel {
     // MARK: Schede
@@ -45,14 +45,15 @@ extension AppModel {
         await perform { crm = try await crmStore.update { $0.deleteActivity(id) } }
     }
 
-    /// Toglie un'azienda con tutto quello che le appartiene; a richiesta anche i suoi dati dal dizionario.
-    func deleteCompany(_ id: UUID, removeFromDictionary: Bool) async {
+    /// Toglie un'azienda dal CRM del progetto: persone, trattative, attività e documenti restano, senza l'azienda.
+    func deleteCompany(_ id: UUID) async {
         await perform {
-            crm = try await crmStore.deleteCompany(id)
-            chat.conversations = try await chatStore.unlink(client: id)
-            if removeFromDictionary {
-                _ = try await store.update { $0.removeClient(id) }
-                await refreshVault()
+            crm = try await crmStore.update { database in
+                database.companies.removeAll { $0.id == id }
+                for index in database.contacts.indices where database.contacts[index].companyID == id { database.contacts[index].companyID = nil }
+                for index in database.deals.indices where database.deals[index].companyID == id { database.deals[index].companyID = nil }
+                for index in database.activities.indices where database.activities[index].companyID == id { database.activities[index].companyID = nil }
+                for index in database.documents.indices where database.documents[index].companyID == id { database.documents[index].companyID = nil }
             }
         }
         companiesPath.removeAll { $0 == .company(id) }
@@ -65,16 +66,24 @@ extension AppModel {
         panel.allowedContentTypes = FilePanels.documentTypes
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.message = "Scegli i file del cliente (testo, Markdown, CSV, Excel, Word, PDF): restano cifrati su questo Mac"
+        panel.message = "Scegli i file del progetto (testo, Markdown, CSV, Excel, Word, PDF): si anonimizzano e restano cifrati su questo Mac"
         panel.prompt = "Aggiungi"
         guard panel.runModal() == .OK else { return }
         await addDocuments(panel.urls, to: companyID)
     }
 
+    /// Aggiunge file ai documenti del progetto e li anonimizza subito (le persone trovate entrano nel CRM).
     func addDocuments(_ urls: [URL], to companyID: UUID?) async {
         for url in urls {
-            await perform { crm = try await crmStore.addDocument(from: url, companyID: companyID).database }
+            var added: UUID?
+            await perform {
+                let result = try await crmStore.addDocument(from: url, companyID: companyID)
+                crm = result.database
+                added = result.document.id
+            }
+            if let added, engine != nil { await anonymizeDocument(added) }
         }
+        await touchCurrentProject()
     }
 
     /// Il file di una versione (l'originale, l'anonimizzato, una risposta dell'AI).
@@ -82,13 +91,14 @@ extension AppModel {
         try await crmStore.data(of: version)
     }
 
-    /// Anonimizza un documento del cliente (in qualunque formato), con i dati che il CRM conosce di lui.
+    /// Anonimizza un documento del progetto (in qualunque formato), con i dati che il CRM conosce; le persone e le
+    /// aziende trovate entrano nel CRM.
     func anonymizeDocument(_ documentID: UUID) async {
         guard let engine, let document = crm.document(documentID), let original = document.original,
               !busyDocuments.contains(documentID) else { return }
         busyDocuments.insert(documentID)
         defer { busyDocuments.remove(documentID) }
-        let known = document.companyID.map { crm.knownValues(for: $0) } ?? []
+        let known = crm.knownValues()
         let settings = settings
         await perform {
             let data = try await crmStore.data(of: original)
@@ -99,6 +109,7 @@ extension AppModel {
             if outcome.recognizedPages > 0 { summary += " · \(outcome.recognizedPages) pagine lette con l'OCR" }
             crm = try await crmStore.setAnonymized(outcome.data, summary: summary, for: documentID)
             await refreshVault()
+            try await extractPeople(from: outcome.preview.plainText, source: original.fileName.isEmpty ? document.title : original.fileName)
         }
     }
 
@@ -137,6 +148,7 @@ extension AppModel {
     func deleteDocument(_ documentID: UUID) async {
         await perform { crm = try await crmStore.deleteDocument(documentID) }
         companiesPath.removeAll { $0 == .document(documentID) }
+        documentsPath.removeAll { $0 == .document(documentID) }
     }
 
     /// Salva una versione in un file: l'originale e l'anonimizzato come sono, una risposta dell'AI riconvertita.
@@ -202,39 +214,21 @@ extension AppModel {
         return (markdown, result)
     }
 
-    /// Dal banco «Anonimizza» alla scheda del cliente: il testo o il file diventa un documento con la sua versione anonimizzata.
-    func saveToClient(_ space: Workspace) async {
-        guard let companyID = space.clientID, crm.company(companyID) != nil, space.hasOutput, !space.isStale,
-              case .anonymized(let report) = space.outcome else { return }
-        let title = space.source.map { $0.url.deletingPathExtension().lastPathComponent }
-            ?? "Testo del \(Date.now.formatted(date: .abbreviated, time: .shortened))"
-        let fileName = space.source?.url.lastPathComponent ?? ""
-        let summary = report.isEmpty ? "Nessun dato da nascondere" : "Nascosti: \(report.summary)"
-        let original: (data: Data, format: DocumentFormat)
-        let anonymized: Data
-        if let source = space.source, source.isFile {
-            guard let output = space.outputData else { return }
-            original = (source.data, source.format)
-            anonymized = output
-        } else {
-            let text = space.source?.text ?? TextDocument(text: space.input, kind: .plainText)
-            var result = text
-            result.text = space.output
-            original = (text.data(), text.kind == .markdown ? .markdown : .plainText)
-            anonymized = result.data()
-        }
-        await perform {
-            let added = try await crmStore.addDocument(title: title, data: original.data, format: original.format, fileName: fileName,
-                                                       companyID: companyID)
-            crm = try await crmStore.setAnonymized(anonymized, summary: summary, for: added.document.id)
-        }
-    }
-
     // MARK: Navigazione
 
-    func openCompany(_ id: UUID) {
+    func openCompany(_ id: UUID?) {
+        guard let id else { return }
         section = .companies
         companiesPath = [.company(id)]
+    }
+
+    func openDocument(_ id: UUID) {
+        section = .documents
+        // Dopo il cambio di sezione: la pila di navigazione nasce adesso.
+        Task {
+            try? await Task.sleep(for: .milliseconds(50))
+            documentsPath = [.document(id)]
+        }
     }
 
     /// Il dizionario filtrato sulle voci di un cliente.

@@ -40,9 +40,13 @@ public struct ChatMessage: Codable, Sendable, Identifiable, Equatable, Hashable 
     public var summary: String
     /// Segnaposto che il dizionario non conosce (inventati da GPT): restano come sono.
     public var unknown: [String]
+    /// Le modifiche ai documenti (o i documenti nuovi) che GPT propone: si applicano solo con la conferma.
+    public var proposals: [ChatProposal]
+    /// I documenti del progetto che GPT ha letto per rispondere (titoli veri).
+    public var readDocuments: [String]
 
     public init(id: UUID = UUID(), role: Role, date: Date = .now, text: String, sent: String, attachments: [ChatAttachment] = [],
-                summary: String = "", unknown: [String] = []) {
+                summary: String = "", unknown: [String] = [], proposals: [ChatProposal] = [], readDocuments: [String] = []) {
         self.id = id
         self.role = role
         self.date = date
@@ -51,7 +55,47 @@ public struct ChatMessage: Codable, Sendable, Identifiable, Equatable, Hashable 
         self.attachments = attachments
         self.summary = summary
         self.unknown = unknown
+        self.proposals = proposals
+        self.readDocuments = readDocuments
     }
+
+    enum CodingKeys: String, CodingKey { case id, role, date, text, sent, attachments, summary, unknown, proposals, readDocuments }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        role = try c.decode(Role.self, forKey: .role)
+        date = c.value(.date, default: .now)
+        text = c.value(.text, default: "")
+        sent = c.value(.sent, default: "")
+        attachments = c.value(.attachments, default: [])
+        summary = c.value(.summary, default: "")
+        unknown = c.value(.unknown, default: [])
+        proposals = c.value(.proposals, default: [])
+        readDocuments = c.value(.readDocuments, default: [])
+    }
+}
+
+/// Una modifica a un documento del progetto, o un documento nuovo, proposta da GPT. Il contenuto è anonimizzato.
+public struct ChatProposal: Codable, Sendable, Identifiable, Equatable, Hashable {
+    public enum Status: String, Codable, Sendable { case pending, applied, discarded }
+
+    public var id = UUID()
+    /// Il documento da modificare; nil per un documento nuovo.
+    public var documentID: UUID?
+    /// Il titolo con i segnaposto (per un documento nuovo è quello scritto da GPT).
+    public var sentTitle: String
+    /// Il testo completo proposto, con i segnaposto.
+    public var content: String
+    public var status = Status.pending
+
+    public init(documentID: UUID?, sentTitle: String, content: String) {
+        self.documentID = documentID
+        self.sentTitle = sentTitle
+        self.content = content
+    }
+
+    public var isNewDocument: Bool { documentID == nil }
 }
 
 public struct ChatConversation: Codable, Sendable, Identifiable, Equatable, Hashable {
@@ -87,25 +131,28 @@ public struct ChatConversation: Codable, Sendable, Identifiable, Equatable, Hash
 /// Le conversazioni stanno nella cartella cifrata dell'app (`chat.sigillato`), insieme a dizionario e CRM, e finiscono
 /// nella copia di sicurezza.
 public actor ChatStore {
-    static let fileName = "chat"
+    public static let fileName = "chat"
 
     public nonisolated let folder: SecureFolder
+    /// Il file cifrato delle conversazioni («chat», o quello di un progetto).
+    public nonisolated let fileName: String
     private var conversations: [ChatConversation] = []
     private var isOpen = false
 
-    public init(folder: SecureFolder) {
+    public init(folder: SecureFolder, fileName: String = ChatStore.fileName) {
         self.folder = folder
+        self.fileName = fileName
     }
 
     /// Le conversazioni, dalla più recente.
     @discardableResult
     public func open() throws -> [ChatConversation] {
         if !isOpen {
-            if let data = try folder.read(Self.fileName) {
+            if let data = try folder.read(fileName) {
                 do {
                     conversations = try JSONDecoder().decode([ChatConversation].self, from: data)
                 } catch {
-                    throw SecureFolder.FolderError.unreadable(name: Self.fileName, reason: error.localizedDescription)
+                    throw SecureFolder.FolderError.unreadable(name: fileName, reason: error.localizedDescription)
                 }
             } else {
                 try folder.unlock()
@@ -152,7 +199,7 @@ public actor ChatStore {
 
     private func write(_ copy: [ChatConversation]) throws {
         guard copy != conversations else { return }
-        try folder.write(JSONEncoder().encode(copy), to: Self.fileName)
+        try folder.write(JSONEncoder().encode(copy), to: fileName)
         conversations = copy
     }
 }

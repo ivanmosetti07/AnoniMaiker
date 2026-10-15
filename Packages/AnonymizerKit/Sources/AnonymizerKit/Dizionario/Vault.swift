@@ -121,6 +121,22 @@ public struct Vault: Sendable, Equatable {
         }
     }
 
+    /// Un dizionario con solo alcune voci, con gli stessi segnaposto. I contatori restano quelli di partenza: un numero
+    /// già dato non torna libero neanche nel dizionario nuovo.
+    public func subset(_ include: (VaultEntry) -> Bool) -> Vault {
+        var result = Vault()
+        result.counters = counters
+        for entry in byPlaceholder.values where include(entry) {
+            result.byPlaceholder[entry.placeholder] = entry
+            result.byKey[Self.key(entry.label, entry.value)] = entry.placeholder
+        }
+        for entry in result.entries {
+            let loose = Self.looseKey(entry.label, entry.value)
+            if result.byLooseKey[loose] == nil { result.byLooseKey[loose] = entry.placeholder }
+        }
+        return result
+    }
+
     /// Le voci legate a un cliente del CRM.
     public func entries(of client: UUID) -> [VaultEntry] {
         entries.filter { $0.clients.contains(client) }

@@ -40,7 +40,7 @@ Requisiti: macOS 26 o successivo, Mac con Apple Silicon o Intel. Il download pes
 anonimizzazione è dentro l'app.
 
 Al primo avvio una **guida** spiega in pochi passi come funziona e aiuta a fare le prime cose: la copia di sicurezza, il
-primo cliente, il primo file, la chat. Si riapre da Aiuto › Guida di AnoniMaiker.
+primo progetto, il primo file, la chat. Si riapre da Aiuto › Guida di AnoniMaiker.
 
 **Aggiornamenti:** quando esce una nuova versione, l'app lo dice e la installa con un clic. Installa solo DMG firmati con
 la chiave del progetto, e i tuoi dati restano dove sono.
@@ -52,13 +52,29 @@ c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo c
 
 ## Cosa c'è
 
+### Progetti
+
+- **Si lavora per progetti.** Un cliente, un evento, una pratica. Il progetto aperto sta in cima alla barra laterale,
+  e dal menu si cambia, se ne crea uno nuovo (⌘N) o si torna all'elenco (⇧⌘P).
+- **Dentro un progetto:** «Anonimizza», «Riconverti» e «Documenti», poi il suo CRM (Persone, Aziende, Trattative,
+  Attività) e il suo Dizionario. Le Impostazioni sono in fondo alla barra laterale.
+- **I documenti si raccolgono da soli.** Un file anonimizzato nel progetto entra fra i suoi documenti, con l'originale,
+  la versione anonimizzata e le versioni dell'AI. Un testo incollato si salva con «Salva nei documenti del progetto».
+- **Il CRM si riempie da solo.** Le persone e le aziende trovate nei documenti entrano nel CRM del progetto. Email,
+  telefono e codice fiscale sulla stessa riga di una persona sono suoi, e nome e cognome in due colonne vicine sono una
+  persona sola. Chi c'è già non si duplica. Trattative e attività si aggiungono a mano.
+- **Un dizionario per progetto.** I segnaposto di un progetto valgono solo lì: un file si riconverte nel progetto da cui
+  viene.
+- **Dalle versioni precedenti:** alla prima apertura ogni cliente diventa un progetto con le sue cose, e il resto va in
+  «Generale». I segnaposto restano quelli di prima.
+
 ### Anonimizzare e riconvertire
 
 - **Motore di anonimizzazione sul Mac.** Un modello Core ML incluso nell'app, più regole con controllo dei checksum per
   IBAN, codice fiscale, P.IVA e carte. Di serie nasconde i dati personali e le aziende. Importi, date e città restano
   in chiaro: all'AI servono per conti e confronti.
-- **Dizionario unico, cifrato.** Lo stesso dato ha sempre lo stesso segnaposto e qualsiasi file si riconverte da solo.
-  Un numero cancellato non viene mai riusato.
+- **Dizionario cifrato, uno per progetto.** Nel progetto lo stesso dato ha sempre lo stesso segnaposto, e i suoi file si
+  riconvertono da soli. Un numero cancellato non viene mai riusato.
 - **File .txt e .md.** L'anonimizzazione e la riconversione mantengono codifica, BOM e a-capo dell'originale. La
   riconversione accetta anche le forme che producono le AI: grassetto, parentesi perse, Markdown con `\[` e `\_`. I
   segnaposto sconosciuti vengono segnalati.
@@ -66,22 +82,20 @@ c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo c
   in quello riconvertito.
 - **Impostazioni:** categorie da nascondere, eccezioni («mai nascondere») e dati già noti.
 
-### CRM e copia di sicurezza
+### CRM del progetto e copia di sicurezza
 
-- **CRM dentro l'app:** clienti, contatti, trattative con importo, fase e probabilità, note e attività con
-  scadenze, documenti.
-- **Scheda del cliente.** Ci sono panoramica, documenti, note e attività, trattative. I dati che il CRM conosce
-  (ragione sociale, P.IVA, nomi ed email dei contatti) si nascondono anche dove il modello non li riconosce, e ogni
-  voce del dizionario resta legata al suo cliente.
+- **CRM del progetto:** persone, aziende, trattative con importo, fase e probabilità, note e attività con scadenze.
+- **Scheda dell'azienda.** Ci sono panoramica, documenti, note e attività, trattative. I dati che il CRM del progetto
+  conosce (ragioni sociali, P.IVA, nomi, email e telefoni delle persone) si nascondono anche dove il modello non li
+  riconosce.
 - **Documenti con le loro versioni:**
   - l'originale, conservato cifrato byte per byte;
   - la versione anonimizzata, da copiare o esportare per l'AI;
   - le risposte dell'AI, incollate o importate e mostrate riconvertite.
-- **Scheda anonimizzata.** Anagrafica, contatti, trattative, note e documenti del cliente in un testo pronto per l'AI.
-- **Dal banco «Anonimizza» al CRM.** Scegli un cliente e salvi il testo nella sua scheda.
-- **Cancellare un cliente.** Con lui se ne vanno contatti, trattative, attività e documenti. A richiesta escono dal
-  dizionario anche i suoi dati.
-- **Copia di sicurezza protetta da password.** Contiene dizionario, CRM e documenti, cifrati con una chiave ricavata
+- **Scheda anonimizzata.** Anagrafica, persone, trattative, note e documenti di un'azienda in un testo pronto per l'AI.
+- **Togliere un'azienda.** Persone, trattative, attività e documenti restano nel progetto, senza l'azienda. Cancellando
+  un progetto se ne vanno anche i suoi documenti, il CRM, il dizionario e le conversazioni.
+- **Copia di sicurezza protetta da password.** Contiene tutti i progetti, con documenti, CRM, dizionari e conversazioni, cifrati con una chiave ricavata
   dalla password (PBKDF2-SHA256, 600.000 iterazioni). Si riapre su un altro Mac. Ripristinando, i dati di prima non si
   cancellano: finiscono in «Sostituiti il …».
 
@@ -113,21 +127,28 @@ c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo c
   anche in un formato diverso, come il testo incollato.
 - **Formati non gestiti:** i file .doc e .xls del vecchio Office vanno prima salvati come .docx e .xlsx.
 
-### Chat con GPT
+### Chat con GPT, a destra
 
+- **Un pannello accanto a ogni sezione** (⌘J), con le conversazioni del progetto aperto.
+- **Lavora sui documenti del progetto.** GPT riceve l'elenco dei documenti con i titoli anonimizzati. Quando gli serve
+  un documento scrive «LEGGI D3», e l'app gli manda il testo anonimizzato (l'ultima versione); poi continua. Lo fa per
+  al massimo quattro giri.
+- **Propone, tu decidi.** Le modifiche a un documento, o un documento nuovo, arrivano come schede con il testo già
+  riconvertito. «Applica» ne fa una nuova versione del documento, o un documento nuovo del progetto; «Scarta» la
+  lascia lì. GPT non modifica niente da solo.
 - **Con il tuo abbonamento ChatGPT.** Ognuno collega il proprio account con un pulsante: l'app installa Codex (la riga
   di comando di OpenAI) se manca, e apre l'accesso di OpenAI nel browser. Nell'app non ci sono chiavi né password. Da
   Impostazioni › Chat si vede lo stato e si scollega l'account.
-- **Parte solo quello che è anonimizzato.** Domanda, allegati e conversazione precedente passano dal motore di
-  anonimizzazione con il dizionario unico. Senza motore la chat non parte. La risposta torna con i dati veri, e i
+- **Parte solo quello che è anonimizzato.** Domanda, allegati, titoli e testi dei documenti e conversazione precedente
+  passano dal motore di anonimizzazione con il dizionario del progetto. Senza motore la chat non parte. La risposta torna con i dati veri, e i
   segnaposto che GPT inventa si segnalano. Sotto ogni messaggio c'è «Cosa è partito» (o «Com'è arrivata») con i
   segnaposto evidenziati.
-- **Allegati:** file di tutti i formati (anche trascinati), la scheda del cliente, i documenti del cliente nel CRM.
+- **Allegati:** file di tutti i formati (anche trascinati), i documenti del progetto, la scheda di un'azienda.
   Anche i nomi dei file passano dal motore.
 - **Grafie diverse, un solo segnaposto.** Nella chat «MARIO ROSSI» e «Mario Rossi» hanno lo stesso segnaposto, così GPT
   capisce che è la stessa persona. I file restano a grafia esatta.
-- **Legata al cliente.** I dati che il CRM conosce si nascondono anche dove il motore non li vede. Una risposta diventa
-  una nota nella scheda con un clic.
+- **Legata al progetto.** I dati che il CRM del progetto conosce si nascondono anche dove il motore non li vede. Una
+  risposta diventa una nota del progetto con un clic.
 - **Codex isolato:** niente configurazione dell'utente, niente sessioni salvate, sola lettura, niente strumenti né
   ricerca sul web, e una cartella vuota.
 - **Le conversazioni** restano cifrate sul Mac, entrano nella copia di sicurezza e si esportano in Markdown con i dati
@@ -193,7 +214,7 @@ anonimizzazione», e la licenza MIT sta in `App/Risorse/Licenze.md`.
 |---|---|
 | `App/` | L'app SwiftUI: banchi «Anonimizza» e «Riconverti», dizionario, impostazioni, copia di sicurezza |
 | `App/ChatView.swift`, `App/AppModel+Chat.swift` | La chat con GPT |
-| `App/CRM/` | Clienti, scheda del cliente, documenti, contatti, trattative, attività, fogli di modifica |
+| `App/CRM/` | Documenti, persone, aziende e scheda dell'azienda, trattative, attività, fogli di modifica |
 | `Packages/AnonymizerKit/` | Motore, cartella cifrata, copia di sicurezza, dizionario, CRM, test e la CLI `anonimizza` |
 | `Packages/AnonymizerKit/Sources/AnonymizerKit/Chat/` | Client Codex, scudo della chat, conversazioni cifrate |
 | `Packages/AnonymizerKit/Sources/AnonymizerKit/Documenti/` | ZIP e XML senza librerie esterne, CSV, Excel, Word, PDF (con OCR) |
@@ -203,6 +224,9 @@ anonimizzazione», e la licenza MIT sta in `App/Risorse/Licenze.md`.
 | `Scripts/pubblica-rilascio.sh` | Versione, test, DMG, firma per gli aggiornamenti, release su GitHub |
 | `Packages/AnonymizerKit/Sources/AnonymizerKit/Aggiornamenti/` | Controllo, verifica e installazione degli aggiornamenti |
 | `App/GuideView.swift` | La guida del primo avvio |
+| `App/ProjectsView.swift`, `App/AppModel+Projects.swift` | Elenco dei progetti, apertura, archiviazione dei documenti |
+| `App/ChatView.swift` | La chat nel pannello a destra, con le proposte |
+| `Packages/AnonymizerKit/Sources/AnonymizerKit/Progetti/` | Progetti, migrazione, CRM che si riempie dai documenti |
 | `App/AppIcon.icon` | L'icona (Icon Composer) |
 | `App/Risorse/Licenze.md` | Licenze di terze parti, incluse nell'app |
 | `Brand/` | Logotipo, simbolo, colori e regole del marchio |
@@ -256,10 +280,12 @@ I test che usano il motore vero partono solo se `Engine/` esiste.
 così quelli già salvati restano dove sono:
 
 - `chiave.json`: la chiave dei dati, sigillata dalla Secure Enclave e quindi utilizzabile solo su questo Mac.
-- `dizionario.sigillato`: il dizionario.
-- `crm.sigillato`: clienti, contatti, trattative, attività e l'elenco dei documenti.
-- `documenti/`: il testo di ogni versione di ogni documento, ciascuno in un file cifrato.
-- `chat.sigillato`: le conversazioni con GPT.
+- `elenco-progetti.sigillato`: i progetti.
+- `progetti/<id>_dizionario`, `progetti/<id>_crm`, `progetti/<id>_chat` (`.sigillato`): dizionario, CRM ed elenco dei
+  documenti, conversazioni di ogni progetto.
+- `documenti/`: ogni versione di ogni documento, ciascuna in un file cifrato.
+
+Per le prove, `ANONIMAIKER_DATI` nell'ambiente fa usare all'app un'altra cartella: i dati veri non si toccano.
 
 Se i dati non si aprono, l'app si ferma e non li sovrascrive mai. Su un Mac nuovo si riaprono solo da una copia di
 sicurezza (File › Ripristina da una copia di sicurezza…).

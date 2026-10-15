@@ -6,14 +6,17 @@ import Foundation
 // permette di riconvertire i file. Un dizionario che non si riesce ad aprire non si sovrascrive mai.
 
 public actor VaultStore {
-    static let fileName = "dizionario"
+    public static let fileName = "dizionario"
 
     public nonisolated let folder: SecureFolder
+    /// Il file cifrato del dizionario («dizionario», o quello di un progetto).
+    public nonisolated let fileName: String
     private var vault = Vault()
     private var isOpen = false
 
-    public init(folder: SecureFolder) {
+    public init(folder: SecureFolder, fileName: String = VaultStore.fileName) {
         self.folder = folder
+        self.fileName = fileName
     }
 
     /// Un dizionario con la sua cartella (per le prove e la riga di comando).
@@ -30,11 +33,11 @@ public actor VaultStore {
     @discardableResult
     public func open() throws -> Vault {
         if isOpen { return vault }
-        if let data = try folder.read(Self.fileName) {
+        if let data = try folder.read(fileName) {
             do {
                 vault = try JSONDecoder().decode(Vault.self, from: data)
             } catch {
-                throw SecureFolder.FolderError.unreadable(name: Self.fileName, reason: error.localizedDescription)
+                throw SecureFolder.FolderError.unreadable(name: fileName, reason: error.localizedDescription)
             }
         } else {
             try folder.unlock()
@@ -51,7 +54,7 @@ public actor VaultStore {
         var copy = try open()
         let result = try body(&copy)
         if copy != vault {
-            try folder.write(JSONEncoder().encode(copy), to: Self.fileName)
+            try folder.write(JSONEncoder().encode(copy), to: fileName)
             vault = copy
         }
         return result

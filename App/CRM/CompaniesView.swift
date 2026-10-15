@@ -26,16 +26,16 @@ struct CompaniesView: View {
         Group {
             if model.crm.companies.isEmpty {
                 ContentUnavailableView {
-                    Label("Nessun cliente", systemImage: "building.2")
+                    Label("Nessuna azienda", systemImage: "building.2")
                 } description: {
-                    Text("Aggiungi il primo cliente: i suoi dati restano su questo Mac, cifrati, e dalla sua scheda ne anonimizzi i documenti.")
+                    Text("Le aziende trovate nei documenti del progetto arrivano qui da sole. Puoi aggiungerne a mano: i dati restano su questo Mac, cifrati.")
                 } actions: {
-                    Button("Nuovo cliente") { editing = Company() }
+                    Button("Nuova azienda") { editing = Company() }
                         .buttonStyle(.borderedProminent)
                 }
             } else {
                 Table(companies, selection: $selection) {
-                    TableColumn("Cliente") { company in
+                    TableColumn("Azienda") { company in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(company.name).fontWeight(.medium)
                             if !company.sector.isEmpty { Text(company.sector).font(.caption).foregroundStyle(.secondary) }
@@ -63,7 +63,7 @@ struct CompaniesView: View {
                 }
             }
         }
-        .navigationTitle("Clienti")
+        .navigationTitle("Aziende")
         .navigationSubtitle(model.crm.companies.isEmpty ? "" : "\(model.crm.companies.count)")
         .searchable(text: $search, prompt: "Cerca nome, città, settore o partita IVA")
         .toolbar {
@@ -74,17 +74,10 @@ struct CompaniesView: View {
                 }
                 .pickerStyle(.menu)
                 .help("Filtra per stato")
-                Button("Nuovo cliente", systemImage: "plus") { editing = Company() }
+                Button("Nuova azienda", systemImage: "plus") { editing = Company() }
                     .disabled(!model.isVaultReady)
             }
         }
         .sheet(item: $editing) { company in CompanyEditor(company: company) }
-        // Dalla guida: «Aggiungi il primo cliente».
-        .task(id: model.requestsNewCompany) {
-            guard model.requestsNewCompany else { return }
-            model.requestsNewCompany = false
-            try? await Task.sleep(for: .milliseconds(400))
-            editing = Company()
-        }
     }
 }

@@ -125,16 +125,6 @@ struct WorkspaceView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            if isAnonymize {
-                Picker("Cliente", selection: $space.clientID) {
-                    Text("Nessun cliente").tag(UUID?.none)
-                    ForEach(model.companyChoices) { company in
-                        Text(company.name).tag(Optional(company.id))
-                    }
-                }
-                .pickerStyle(.menu)
-                .help("Lega i dati a un cliente del CRM: si nascondono anche quelli che il CRM conosce di lui")
-            }
             Button("Apri…", systemImage: "doc.badge.plus") { model.chooseFile(for: space) }
                 .keyboardShortcut("o")
                 .help("Apri un file: testo, Markdown, CSV, Excel, Word o PDF")
@@ -153,9 +143,10 @@ struct WorkspaceView: View {
                 .disabled(!space.hasOutput)
                 .help("Salva il risultato in un file (⌘S)")
             if isAnonymize {
-                Button("Salva nella scheda del cliente", systemImage: "tray.and.arrow.down") { Task { await model.saveToClient(space) } }
-                    .disabled(space.clientID == nil || !space.hasOutput || space.isStale || space.isRunning)
-                    .help(space.clientID == nil ? "Scegli prima un cliente" : "Archivia l'originale e la versione anonimizzata nella scheda del cliente")
+                Button("Salva nei documenti del progetto", systemImage: "tray.and.arrow.down") { Task { await model.saveToProject(space) } }
+                    .disabled(space.isFile || !space.hasOutput || space.isStale || space.isRunning || space.projectNote != nil)
+                    .help(space.isFile ? "I file anonimizzati entrano da soli nei documenti del progetto"
+                          : "Archivia il testo e la sua versione anonimizzata nei documenti del progetto (le persone entrano nel CRM)")
             }
             Button("Pulisci", systemImage: "xmark.circle") { space.clear() }
                 .disabled(space.isEmpty)
@@ -205,6 +196,16 @@ struct ReportBar: View {
                     if report.newEntries > 0 {
                         Text("· \(report.newEntries) \(report.newEntries == 1 ? "nuovo" : "nuovi") nel dizionario").foregroundStyle(.secondary)
                     }
+                }
+                if let note = space.projectNote {
+                    Spacer(minLength: 8)
+                    Button {
+                        model.section = .documents
+                    } label: {
+                        Label(note, systemImage: "folder.badge.plus")
+                    }
+                    .buttonStyle(.link)
+                    .help("Apri i documenti del progetto")
                 }
             case .revealed(let result):
                 Label(result.count == 0 ? "Nessun segnaposto da riconvertire" : "Riconvertiti \(result.count) segnaposto",

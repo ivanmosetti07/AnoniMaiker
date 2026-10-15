@@ -170,7 +170,8 @@ public enum DealStage: String, Codable, Sendable, CaseIterable, Identifiable {
 public struct Deal: Codable, Sendable, Identifiable, Hashable {
     public var id = UUID()
     public var title = ""
-    public var companyID: UUID
+    /// L'azienda della trattativa (in un progetto può anche non esserci).
+    public var companyID: UUID?
     public var contactID: UUID?
     public var stage = DealStage.new
     public var amount: Decimal?
@@ -180,7 +181,7 @@ public struct Deal: Codable, Sendable, Identifiable, Hashable {
     public var created = Date.now
     public var updated = Date.now
 
-    public init(title: String = "", companyID: UUID) {
+    public init(title: String = "", companyID: UUID? = nil) {
         self.title = title
         self.companyID = companyID
     }
@@ -192,7 +193,7 @@ public struct Deal: Codable, Sendable, Identifiable, Hashable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
-        companyID = try c.decode(UUID.self, forKey: .companyID)
+        companyID = c.value(.companyID, default: nil)
         title = c.value(.title, default: "")
         contactID = c.value(.contactID, default: nil)
         stage = c.value(.stage, default: .new)

@@ -122,13 +122,34 @@ extension CRMDatabase {
     /// il motore non li riconosce.
     public func knownValues(for companyID: UUID) -> [KnownValue] {
         guard let company = company(companyID) else { return [] }
-        var values: [KnownValue] = []
-        func add(_ label: String, _ value: String) {
-            let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !value.isEmpty else { return }
-            let known = KnownValue(label: label, value: value)
-            if !values.contains(known) { values.append(known) }
-        }
+        var values = KnownValues()
+        values.add(company)
+        for contact in contacts(of: companyID) { values.add(contact) }
+        return values.list
+    }
+
+    /// Tutto quello che il CRM di un progetto conosce: aziende e persone.
+    public func knownValues() -> [KnownValue] {
+        var values = KnownValues()
+        for company in companies { values.add(company) }
+        for contact in contacts { values.add(contact) }
+        return values.list
+    }
+}
+
+/// I dati noti, senza doppioni e senza campi vuoti.
+private struct KnownValues {
+    var list: [KnownValue] = []
+    private var seen = Set<KnownValue>()
+
+    mutating func add(_ label: String, _ value: String) {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        let known = KnownValue(label: label, value: value)
+        if seen.insert(known).inserted { list.append(known) }
+    }
+
+    mutating func add(_ company: Company) {
         add("ORG", company.name)
         add("PIVA", company.vatNumber)
         // Il codice fiscale di una società è spesso la sua partita IVA (11 cifre).
@@ -138,13 +159,13 @@ extension CRMDatabase {
         add("EMAIL", company.pec)
         add("TELEPHONENUM", company.phone)
         add("URL", company.website)
-        for contact in contacts(of: companyID) {
-            if contact.fullName.split(separator: " ").count >= 2 { add("FULLNAME", contact.fullName) }
-            add("EMAIL", contact.email)
-            add("TELEPHONENUM", contact.phone)
-            add("TELEPHONENUM", contact.mobile)
-            add("CF", contact.taxCode)
-        }
-        return values
+    }
+
+    mutating func add(_ contact: Contact) {
+        if contact.fullName.split(separator: " ").count >= 2 { add("FULLNAME", contact.fullName) }
+        add("EMAIL", contact.email)
+        add("TELEPHONENUM", contact.phone)
+        add("TELEPHONENUM", contact.mobile)
+        add("CF", contact.taxCode)
     }
 }

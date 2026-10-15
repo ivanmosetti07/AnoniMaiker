@@ -13,9 +13,11 @@ extension AppModel {
 
     func startExport() {
         backupStep = .export
+        Task { _ = await allProjectsSummary() }
     }
 
     func startRestore() {
+        Task { _ = await allProjectsSummary() }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [Self.backupType]
         panel.allowsMultipleSelection = false
@@ -24,10 +26,24 @@ extension AppModel {
         if panel.runModal() == .OK, let url = panel.url { backupStep = .restore(url) }
     }
 
+    /// Quanto c'è in tutti i progetti insieme (per la copia di sicurezza).
+    func allProjectsSummary() async -> BackupSummary {
+        var vaults: [Vault] = []
+        var crms: [CRMDatabase] = []
+        for project in projects {
+            let space = projectStore.space(project.id)
+            if let vault = try? await space.vault.snapshot() { vaults.append(vault) }
+            if let crm = try? await space.crm.snapshot() { crms.append(crm) }
+        }
+        let summary = BackupSummary(projects: projects.count, vaults: vaults, crms: crms, appVersion: Self.appVersion)
+        totals = summary
+        return summary
+    }
+
     /// Crea la copia e la salva dove sceglie l'utente. Restituisce true se è stata salvata.
     func exportBackup(password: String) async throws -> Bool {
         let folder = folder
-        let summary = BackupSummary(vault: vault, crm: crm, appVersion: Self.appVersion)
+        let summary = await allProjectsSummary()
         let data = try await Task.detached(priority: .userInitiated) {
             try Backup.make(files: folder.allFiles(), summary: summary, password: password)
         }.value

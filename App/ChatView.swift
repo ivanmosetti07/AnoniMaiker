@@ -2,113 +2,26 @@ import AnonymizerKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - Chat con GPT
+// MARK: - La chat con GPT, a destra
 //
-// A sinistra le conversazioni, a destra quella aperta. L'utente vede sempre i dati veri; sotto ogni messaggio si può
-// aprire «cosa è partito» (o «com'è arrivata»), cioè il testo con i segnaposto, l'unico che lascia il Mac.
+// Un pannello che si apre accanto a ogni sezione (⌘J) e lavora sul progetto aperto: GPT vede l'elenco dei suoi documenti,
+// li legge quando servono (sempre anonimizzati) e propone modifiche o documenti nuovi, che si applicano con un clic.
+// L'utente vede sempre i dati veri; sotto ogni messaggio c'è «cosa è partito» con i segnaposto.
 
-struct ChatView: View {
+struct ChatPanel: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HSplitView {
-            ConversationList()
-                .frame(minWidth: 190, idealWidth: 230, maxWidth: 320)
-            ConversationPane()
-                .frame(minWidth: 440, maxWidth: .infinity)
-        }
-        .navigationTitle("Chat con GPT")
-        .toolbar { toolbar }
-        .task {
-            if model.chat.codexStatus == nil { await model.refreshCodexStatus() }
-        }
-    }
-
-    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        let chat = model.chat
-        ToolbarItemGroup(placement: .primaryAction) {
-            Picker("Cliente", selection: Binding(get: { chat.clientID }, set: { value in Task { await model.setChatClient(value) } })) {
-                Text("Nessun cliente").tag(UUID?.none)
-                ForEach(model.companyChoices) { company in
-                    Text(company.name).tag(Optional(company.id))
-                }
-            }
-            .pickerStyle(.menu)
-            .disabled(chat.isBusy)
-            .help("Lega i dati della conversazione a un cliente del CRM: si nascondono anche quelli che il CRM conosce di lui")
-            Button("Nuova conversazione", systemImage: "square.and.pencil") { model.newConversation() }
-                .keyboardShortcut("n")
-                .disabled(chat.isBusy || chat.selectedID == nil)
-                .help("Nuova conversazione (⌘N)")
-            Button("Esporta…", systemImage: "square.and.arrow.up") {
-                if let conversation = chat.selected { model.exportConversation(conversation) }
-            }
-            .disabled(chat.selected?.messages.isEmpty ?? true)
-            .help("Salva la conversazione in Markdown, con i dati veri")
-        }
-    }
-}
-
-/// L'elenco delle conversazioni, dalla più recente.
-private struct ConversationList: View {
-    @Environment(AppModel.self) private var model
-    @State private var deleting: ChatConversation?
-
-    var body: some View {
-        let chat = model.chat
-        List(selection: Binding(get: { chat.selectedID }, set: { model.select($0) })) {
-            ForEach(chat.conversations) { conversation in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(conversation.displayTitle)
-                        .lineLimit(1)
-                    HStack(spacing: 4) {
-                        if let company = model.crm.company(conversation.clientID) {
-                            Text(company.name).lineLimit(1)
-                            Text("·")
-                        }
-                        Text(Format.date(conversation.updated))
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 2)
-                .tag(conversation.id)
-                .contextMenu {
-                    Button("Esporta…") { model.exportConversation(conversation) }
-                    Divider()
-                    Button("Elimina…", role: .destructive) { deleting = conversation }
-                }
-            }
-        }
-        .overlay {
-            if chat.conversations.isEmpty {
-                Text("Nessuna conversazione")
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .confirmationDialog("Eliminare la conversazione?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                            presenting: deleting) { conversation in
-            Button("Elimina", role: .destructive) { Task { await model.deleteConversation(conversation.id) } }
-        } message: { conversation in
-            Text("«\(conversation.displayTitle)» si cancella da questo Mac. Il dizionario non cambia.")
-        }
-    }
-}
-
-/// La conversazione aperta, con la casella per scrivere.
-private struct ConversationPane: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let chat = model.chat
         VStack(spacing: 0) {
+            ChatHeader()
+            Divider()
             CodexBanner()
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        if let conversation = chat.selected {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        if let conversation = model.chat.selected {
                             ForEach(conversation.messages) { message in
-                                MessageView(message: message, clientID: conversation.clientID)
+                                MessageView(message: message)
                                     .id(message.id)
                             }
                         } else {
@@ -117,14 +30,78 @@ private struct ConversationPane: View {
                         StatusRow()
                             .id("fondo")
                     }
-                    .padding(18)
+                    .padding(12)
                 }
-                .onChange(of: chat.selected?.messages.count) { proxy.scrollTo("fondo", anchor: .bottom) }
-                .onChange(of: chat.phase) { proxy.scrollTo("fondo", anchor: .bottom) }
-                .onChange(of: chat.selectedID) { proxy.scrollTo("fondo", anchor: .bottom) }
+                .onChange(of: model.chat.selected?.messages.count) { proxy.scrollTo("fondo", anchor: .bottom) }
+                .onChange(of: model.chat.phase) { proxy.scrollTo("fondo", anchor: .bottom) }
+                .onChange(of: model.chat.selectedID) { proxy.scrollTo("fondo", anchor: .bottom) }
             }
             Divider()
             Composer()
+        }
+        .task {
+            if model.chat.codexStatus == nil { await model.refreshCodexStatus() }
+        }
+    }
+}
+
+/// In cima: la conversazione aperta e il menu per cambiarla, una nuova, esportare o cancellare.
+private struct ChatHeader: View {
+    @Environment(AppModel.self) private var model
+    @State private var deleting: ChatConversation?
+
+    var body: some View {
+        let chat = model.chat
+        HStack(spacing: 8) {
+            Menu {
+                Button("Nuova conversazione", systemImage: "square.and.pencil") { model.newConversation() }
+                if !chat.conversations.isEmpty { Divider() }
+                ForEach(chat.conversations) { conversation in
+                    Button {
+                        model.select(conversation.id)
+                    } label: {
+                        if conversation.id == chat.selectedID { Label(conversation.displayTitle, systemImage: "checkmark") } else { Text(conversation.displayTitle) }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(chat.selected?.displayTitle ?? "Nuova conversazione")
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .disabled(chat.isBusy)
+            Spacer()
+            Button("Nuova conversazione", systemImage: "square.and.pencil") { model.newConversation() }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .disabled(chat.isBusy || chat.selectedID == nil)
+                .help("Nuova conversazione")
+            Menu {
+                Button("Esporta in Markdown…") { if let conversation = chat.selected { model.exportConversation(conversation) } }
+                    .disabled(chat.selected?.messages.isEmpty ?? true)
+                Divider()
+                Button("Elimina la conversazione…", role: .destructive) { deleting = chat.selected }
+                    .disabled(chat.selected == nil)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(chat.isBusy)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .confirmationDialog("Eliminare la conversazione?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                            presenting: deleting) { conversation in
+            Button("Elimina", role: .destructive) { Task { await model.deleteConversation(conversation.id) } }
+        } message: { conversation in
+            Text("«\(conversation.displayTitle)» si cancella da questo Mac. Documenti e dizionario non cambiano.")
         }
     }
 }
@@ -140,7 +117,7 @@ private struct CodexBanner: View {
         }
         if missing || model.chat.connection != nil {
             ChatGPTConnectView(compact: true)
-                .padding(12)
+                .padding(10)
                 .background(Color.accentColor.opacity(0.08))
         }
     }
@@ -150,24 +127,27 @@ private struct EmptyChat: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             Image(systemName: "bubble.left.and.text.bubble.right")
-                .font(.system(size: 34, weight: .light))
+                .font(.system(size: 28, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("Chiedi a GPT, senza dargli i dati veri")
-                .font(.title3)
-            Text("Scrivi una domanda e allega file, documenti del CRM o la scheda di un cliente. Prima di partire tutto passa dal motore di anonimizzazione sul Mac: a GPT arrivano solo segnaposto come [FULLNAME_1], e la risposta torna con i dati veri.")
-                .multilineTextAlignment(.center)
+            Text("Chiedi a GPT sul progetto").font(.headline)
+            Text("GPT vede l'elenco dei documenti di «\(model.currentProject?.name ?? "")», li legge quando servono e può proporre modifiche o documenti nuovi: li applichi tu con un clic. Prima di partire tutto passa dal motore di anonimizzazione sul Mac: a GPT arrivano solo segnaposto come [FULLNAME_1].")
+                .font(.callout)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: 460)
-            if let client = model.crm.company(model.chat.clientID) {
-                Label("I dati saranno legati a \(client.name)", systemImage: "building.2")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(["Riassumi i documenti del progetto", "Scrivi una mail di conferma ai partecipanti", "Correggi gli orari nel programma"], id: \.self) { idea in
+                    Button {
+                        model.chat.draft = idea
+                    } label: {
+                        Label(idea, systemImage: "sparkle").font(.callout)
+                    }
+                    .buttonStyle(.link)
+                }
             }
+            .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 60)
+        .padding(.top, 20)
     }
 }
 
@@ -180,8 +160,7 @@ private struct StatusRow: View {
         if let phase = chat.phase {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text(phase == .anonymizing ? "Anonimizzo la domanda e gli allegati sul Mac…" : "GPT sta scrivendo…")
-                    .foregroundStyle(.secondary)
+                Text(text(for: phase)).foregroundStyle(.secondary)
                 Button("Annulla") { model.cancelChat() }
                     .buttonStyle(.link)
             }
@@ -197,56 +176,69 @@ private struct StatusRow: View {
             .font(.callout)
         }
     }
+
+    private func text(for phase: ChatState.Phase) -> String {
+        switch phase {
+        case .anonymizing: "Anonimizzo la domanda sul Mac…"
+        case .waiting: "GPT sta scrivendo…"
+        case .reading(let titles): "Leggo " + titles.map { "«\($0)»" }.joined(separator: ", ") + " (anonimizzati)…"
+        }
+    }
 }
 
-/// Un messaggio: i dati veri, gli allegati, cosa è stato nascosto, e a richiesta la forma con i segnaposto.
+/// Un messaggio: i dati veri, gli allegati, i documenti letti, le proposte, e a richiesta la forma con i segnaposto.
 private struct MessageView: View {
     @Environment(AppModel.self) private var model
     let message: ChatMessage
-    let clientID: UUID?
     @State private var showsSent = false
     @State private var savedNote = false
 
     private var isUser: Bool { message.role == .user }
 
     var body: some View {
-        HStack {
-            if isUser { Spacer(minLength: 60) }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Text(isUser ? "Tu" : "GPT").fontWeight(.semibold)
-                    Text(Format.dateTime(message.date)).foregroundStyle(.secondary)
-                }
-                .font(.caption)
-                if !message.text.isEmpty {
-                    Text(isUser ? AttributedString(message.text) : ChatText.markdown(message.text))
-                        .textSelection(.enabled)
-                }
-                if !message.attachments.isEmpty {
-                    FlowAttachments(names: message.attachments.map(\.name))
-                }
-                footer
-                if showsSent {
-                    SentText(message: message)
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(isUser ? "Tu" : "GPT").fontWeight(.semibold)
+                Text(Format.dateTime(message.date)).foregroundStyle(.secondary)
             }
-            .padding(12)
-            .background(isUser ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.08), in: .rect(cornerRadius: 10))
-            if !isUser { Spacer(minLength: 60) }
+            .font(.caption)
+            if !message.readDocuments.isEmpty {
+                Label("Ha letto: " + message.readDocuments.map { "«\($0)»" }.joined(separator: ", "), systemImage: "doc.text.magnifyingglass")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !message.text.isEmpty {
+                Text(isUser ? AttributedString(message.text) : ChatText.markdown(message.text))
+                    .textSelection(.enabled)
+            }
+            if !message.attachments.isEmpty {
+                FlowAttachments(names: message.attachments.map(\.name))
+            }
+            ForEach(message.proposals) { proposal in
+                ProposalCard(proposal: proposal, messageID: message.id)
+            }
+            footer
+            if showsSent {
+                SentText(message: message)
+            }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isUser ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.08), in: .rect(cornerRadius: 10))
     }
 
     private var footer: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             if !message.summary.isEmpty {
                 Label(isUser ? "Nascosti: \(message.summary)" : message.summary, systemImage: isUser ? "eye.slash" : "arrow.uturn.backward")
+                    .lineLimit(1)
             } else if isUser {
                 Label("Nessun dato da nascondere", systemImage: "eye")
             }
             if !message.unknown.isEmpty {
-                Label("Segnaposto sconosciuti: \(message.unknown.joined(separator: ", "))", systemImage: "questionmark.diamond")
+                Image(systemName: "questionmark.diamond")
                     .foregroundStyle(.orange)
-                    .help("GPT ha scritto segnaposto che il dizionario non conosce: restano come sono")
+                    .help("Segnaposto sconosciuti: \(message.unknown.joined(separator: ", ")) (restano come sono)")
             }
             Spacer(minLength: 0)
             Button(showsSent ? "Nascondi" : (isUser ? "Cosa è partito" : "Com'è arrivata")) { showsSent.toggle() }
@@ -256,22 +248,72 @@ private struct MessageView: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .help("Copia la risposta con i dati veri")
-                if model.crm.company(clientID) != nil {
-                    Button(savedNote ? "Salvata" : "Salva come nota", systemImage: savedNote ? "checkmark" : "note.text.badge.plus") {
-                        Task {
-                            await model.saveAsNote(message)
-                            savedNote = true
-                        }
+                Button(savedNote ? "Salvata" : "Salva come nota", systemImage: savedNote ? "checkmark" : "note.text.badge.plus") {
+                    Task {
+                        await model.saveAsNote(message)
+                        savedNote = true
                     }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .disabled(savedNote)
-                    .help("Salva la risposta come nota nella scheda del cliente")
                 }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .disabled(savedNote)
+                .help("Salva la risposta fra le note del progetto")
             }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+    }
+}
+
+/// Una proposta di GPT: il testo già riconvertito, da applicare (nuova versione o documento nuovo) o scartare.
+private struct ProposalCard: View {
+    @Environment(AppModel.self) private var model
+    let proposal: ChatProposal
+    let messageID: UUID
+    @State private var expanded = false
+
+    var body: some View {
+        let title = Revealer.reveal(proposal.sentTitle, vault: model.vault).text
+        let content = Revealer.reveal(proposal.content, vault: model.vault).text
+        VStack(alignment: .leading, spacing: 8) {
+            Label(proposal.isNewDocument ? "Nuovo documento «\(title)»" : "Modifica a «\(title)»",
+                  systemImage: proposal.isNewDocument ? "doc.badge.plus" : "pencil.and.list.clipboard")
+                .fontWeight(.semibold)
+            Text(expanded ? content : String(content.prefix(600)) + (content.count > 600 ? "…" : ""))
+                .font(.callout)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(.background.opacity(0.7), in: .rect(cornerRadius: 6))
+            HStack {
+                if content.count > 600 {
+                    Button(expanded ? "Mostra meno" : "Mostra tutto") { expanded.toggle() }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                }
+                Spacer()
+                switch proposal.status {
+                case .pending:
+                    Button("Scarta") { Task { await model.discard(proposal, in: messageID) } }
+                    Button(proposal.isNewDocument ? "Aggiungi al progetto" : "Applica come nuova versione") {
+                        Task { await model.apply(proposal, in: messageID) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                case .applied:
+                    Label("Applicata", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
+                    if let document = model.document(for: proposal) {
+                        Button("Apri il documento") { model.openDocument(document.id) }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                    }
+                case .discarded:
+                    Label("Scartata", systemImage: "xmark.circle").foregroundStyle(.secondary).font(.caption)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.accentColor.opacity(0.06), in: .rect(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor.opacity(0.35)))
     }
 }
 
@@ -347,9 +389,9 @@ private struct Composer: View {
             }
             HStack(alignment: .bottom, spacing: 8) {
                 attachMenu
-                TextField("Scrivi a GPT… (i dati personali partono come segnaposto)", text: $chat.draft, axis: .vertical)
+                TextField("Chiedi a GPT sul progetto…", text: $chat.draft, axis: .vertical)
                     .textFieldStyle(.plain)
-                    .lineLimit(1...10)
+                    .lineLimit(1...8)
                     .focused($focused)
                     .onSubmit { model.sendChat() }
                     .disabled(chat.isBusy)
@@ -357,16 +399,18 @@ private struct Composer: View {
                 Button {
                     model.sendChat()
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
+                    Image(systemName: "arrow.up.circle.fill").font(.title2)
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!model.canSendChat)
-                .help(sendHelp)
+                .help(model.engine == nil || model.engineState == .missing ? "Senza motore di anonimizzazione la chat non parte" : "Anonimizza e invia (↩ o ⌘↩)")
             }
+            Text("I dati personali partono come segnaposto.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(dropTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
@@ -380,35 +424,32 @@ private struct Composer: View {
         .onAppear { focused = true }
     }
 
-    private var sendHelp: String {
-        if model.engine == nil || model.engineState == .missing { return "Senza motore di anonimizzazione la chat non parte" }
-        return "Anonimizza e invia (↩ o ⌘↩)"
-    }
-
     private var attachMenu: some View {
-        let chat = model.chat
-        let documents = chat.clientID.map { model.crm.documents(of: $0) } ?? []
+        let documents = model.crm.documents.sorted { $0.updated > $1.updated }
         return Menu {
-            Button("File…", systemImage: "doc") { model.attachFiles() }
-            Divider()
-            Button("Scheda del cliente", systemImage: "person.text.rectangle") { model.attachDossier() }
-                .disabled(model.crm.company(chat.clientID) == nil)
-            Menu("Documento del cliente") {
+            Menu("Documento del progetto") {
                 ForEach(documents) { document in
                     Button(document.title) { Task { await model.attach(document) } }
                 }
             }
             .disabled(documents.isEmpty)
+            Menu("Scheda di un'azienda") {
+                ForEach(model.companyChoices) { company in
+                    Button(company.name) { model.attachDossier(company.id) }
+                }
+            }
+            .disabled(model.crm.companies.isEmpty)
+            Divider()
+            Button("File dal Mac…", systemImage: "doc") { model.attachFiles() }
         } label: {
-            Image(systemName: "paperclip")
-                .font(.title3)
+            Image(systemName: "paperclip").font(.title3)
         }
         .menuStyle(.button)
         .buttonStyle(.borderless)
         .menuIndicator(.hidden)
         .fixedSize()
-        .disabled(chat.isBusy)
-        .help("Allega un file, la scheda del cliente o un suo documento")
+        .disabled(model.chat.isBusy)
+        .help("Allega un documento del progetto, la scheda di un'azienda o un file. GPT può anche cercare da solo fra i documenti del progetto.")
     }
 }
 

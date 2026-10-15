@@ -20,7 +20,7 @@ struct BackupExportSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Label("Crea una copia di sicurezza", systemImage: "externaldrive.badge.checkmark")
                 .font(.title2.weight(.semibold))
-            Text("Dentro ci sono il dizionario, il CRM e i documenti (\(BackupSummary(vault: model.vault, crm: model.crm, appVersion: "").description)), cifrati con la password che scegli adesso. Con la copia e la password riavrai tutto anche su un altro Mac.")
+            Text("Dentro ci sono tutti i progetti, con documenti, CRM, dizionari e conversazioni (\(model.totals?.description ?? "…")), cifrati con la password che scegli adesso. Con la copia e la password riavrai tutto anche su un altro Mac.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Form {
@@ -135,8 +135,7 @@ struct BackupRestoreSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(4)
             }
-            let current = BackupSummary(vault: model.vault, crm: model.crm, appVersion: "")
-            Label("I dati di questo Mac (\(model.isVaultReady ? current.description : "non apribili")) verranno sostituiti. Non si cancellano: finiscono in una cartella «Sostituiti il …» accanto al dizionario.",
+            Label("I dati di questo Mac (\(model.isVaultReady ? (model.totals?.description ?? "…") : "non apribili")) verranno sostituiti. Non si cancellano: finiscono in una cartella «Sostituiti il …» accanto al dizionario.",
                   systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
                 .font(.callout)
@@ -204,7 +203,7 @@ struct BackupSettings: View {
         Form {
             Section {
                 LabeledContent("Ultima copia", value: model.lastBackup.map(Format.dateTime) ?? "Mai fatta")
-                LabeledContent("Contenuto", value: BackupSummary(vault: model.vault, crm: model.crm, appVersion: "").description)
+                LabeledContent("Contenuto", value: model.totals?.description ?? "…")
             } footer: {
                 Text("Il dizionario è legato alla Secure Enclave di questo Mac: su un Mac nuovo i dati si riaprono solo da una copia di sicurezza. Fanne una dopo ogni giornata di lavoro importante.")
                     .foregroundStyle(.secondary)
@@ -223,6 +222,7 @@ struct BackupSettings: View {
             }
         }
         .formStyle(.grouped)
+        .task { _ = await model.allProjectsSummary() }
         .sheet(item: $step) { step in
             switch step {
             case .export: BackupExportSheet()
