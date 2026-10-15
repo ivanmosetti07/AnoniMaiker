@@ -114,4 +114,29 @@ import Testing
                                            labels: PIICategory.defaultHidden, exceptions: [])
         #expect(matches.map(\.placeholder) == ["[ORG_2]"])
     }
+
+    /// «Nascondi sempre»: parole che il motore non riconosce, nascoste ovunque con la loro categoria.
+    @Test func forcedTermsAreAlwaysHidden() async throws {
+        let (anonymizer, directory) = FormatTest.anonymizer()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var settings = AnonymizationSettings(hidden: ["EMAIL"], forcedTerms: [ForcedTerm(value: "On Location", label: "ORG"),
+                                                                              ForcedTerm(value: "Progetto Aurora", label: "OTHER")])
+        let text = "Allestimento di ON  LOCATION per il progetto aurora. Onlocation e On Locationale restano."
+        let result = try await anonymizer.anonymize(text, settings: settings)
+        #expect(result.text == "Allestimento di [ORG_1] per il [OTHER_1]. Onlocation e On Locationale restano.")
+        #expect(result.report.summary == "1 azienda, 1 altro dato")
+        let revealed = try await anonymizer.reveal(result.text).text
+        #expect(revealed == text)
+
+        // Anche nelle tabelle, e vincono sulle eccezioni.
+        settings.exceptions = ["On Location"]
+        let csv = "Fornitore;Note\nOn Location;ok\n"
+        let outcome = try await anonymizer.anonymizeFile(Data(csv.utf8), format: .csv, settings: settings)
+        #expect(String(decoding: outcome.data, as: UTF8.self) == "Fornitore;Note\n[ORG_2];ok\n")
+
+        // Le impostazioni salvate prima non hanno «nascondi sempre».
+        let old = #"{"hidden":["ORG"],"exceptions":["Studio Alfa"],"maskKnownValues":false}"#
+        let decoded = try JSONDecoder().decode(AnonymizationSettings.self, from: Data(old.utf8))
+        #expect(decoded.forcedTerms.isEmpty && decoded.exceptions == ["Studio Alfa"] && !decoded.maskKnownValues)
+    }
 }

@@ -158,6 +158,32 @@ enum Masking {
         return entities.filter { !isException(text.slice($0.start, $0.end), exceptions) }
     }
 
+    /// Le parole di «nascondi sempre» dove compaiono (senza badare a maiuscole e spazi, a parola intera e fuori dai
+    /// segnaposto che ci sono già). Vincono su quello che ha trovato il motore nello stesso punto.
+    static func withForced(_ entities: [PIIEntity], in text: PIIText, terms: [ForcedTerm]) -> [PIIEntity] {
+        let forced = forcedMatches(in: text, terms: terms)
+        guard !forced.isEmpty else { return entities }
+        let kept = entities.filter { entity in !forced.contains { $0.start < entity.end && entity.start < $0.end } }
+        return (kept + forced).sorted { $0.start < $1.start }
+    }
+
+    static func forcedMatches(in text: PIIText, terms: [ForcedTerm]) -> [PIIEntity] {
+        let terms = terms.filter { !$0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !terms.isEmpty else { return [] }
+        let byValue = Dictionary(terms.map { (Vault.normalized($0.value), $0.label) }, uniquingKeysWith: { first, _ in first })
+        let pattern = terms.map { $0.value.trimmingCharacters(in: .whitespacesAndNewlines) }.sorted { $0.count > $1.count }
+            .map { NSRegularExpression.escapedPattern(for: $0).replacingOccurrences(of: " ", with: #"\s+"#) }
+            .joined(separator: "|")
+        guard let regex = try? NSRegularExpression(pattern: #"(?<![\p{L}\p{N}_])(?:"# + pattern + #")(?![\p{L}\p{N}_])"#,
+                                                   options: [.caseInsensitive]) else { return [] }
+        let existing = text.matches(PIIAnalysis.placeholderRegex)
+        return text.matches(regex).compactMap { match in
+            guard !existing.contains(where: { $0.start < match.end && match.start < $0.end }),
+                  let label = byValue[Vault.normalized(text.slice(match.start, match.end))] else { return nil }
+            return PIIEntity(label: label, start: match.start, end: match.end, score: 1, validated: true, source: .regex)
+        }
+    }
+
     /// I dati già nel dizionario che il modello non ha visto in questo testo diventano i loro segnaposto: un nome trovato
     /// nel primo paragrafo non resta in chiaro nel quinto. Restano fuori i nomi di una parola sola («Marco»: troppo
     /// comuni) e i valori di meno di 4 caratteri.

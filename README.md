@@ -80,7 +80,7 @@ c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo c
   segnaposto sconosciuti vengono segnalati.
 - **Nomi dei file.** I dati del dizionario diventano segnaposto anche nel nome del file anonimizzato, e tornano veri
   in quello riconvertito.
-- **Impostazioni:** categorie da nascondere, eccezioni («mai nascondere») e dati già noti.
+- **Impostazioni:** categorie da nascondere, eccezioni («nascondi sempre» per i nomi che il motore non riconosce, come un'attività dal nome vago, e «mai nascondere») e dati già noti.
 
 ### CRM del progetto e copia di sicurezza
 

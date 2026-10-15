@@ -11,13 +11,53 @@ public struct AnonymizationSettings: Codable, Sendable, Equatable {
     public var hidden: Set<String>
     /// «Mai nascondere»: per esempio il nome della tua agenzia. Si confrontano senza badare a maiuscole e forma societaria.
     public var exceptions: [String]
+    /// «Nascondi sempre»: parole che il motore non riconosce da solo (per esempio un'attività dal nome vago come
+    /// «On Location»). Si nascondono ovunque compaiano, con la loro categoria, anche se la categoria è in chiaro.
+    public var forcedTerms: [ForcedTerm]
     /// Nascondi anche i dati già nel dizionario che il modello non ha riconosciuto in questo testo.
     public var maskKnownValues: Bool
 
-    public init(hidden: Set<String> = PIICategory.defaultHidden, exceptions: [String] = [], maskKnownValues: Bool = true) {
+    public init(hidden: Set<String> = PIICategory.defaultHidden, exceptions: [String] = [], forcedTerms: [ForcedTerm] = [],
+                maskKnownValues: Bool = true) {
         self.hidden = hidden
         self.exceptions = exceptions
+        self.forcedTerms = forcedTerms
         self.maskKnownValues = maskKnownValues
+    }
+
+    enum CodingKeys: String, CodingKey { case hidden, exceptions, forcedTerms, maskKnownValues }
+
+    // Le impostazioni salvate dalle versioni precedenti non hanno «nascondi sempre».
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hidden = c.value(.hidden, default: PIICategory.defaultHidden)
+        exceptions = c.value(.exceptions, default: [])
+        forcedTerms = c.value(.forcedTerms, default: [])
+        maskKnownValues = c.value(.maskKnownValues, default: true)
+    }
+}
+
+/// Una parola da nascondere sempre, con la sua categoria (azienda, persona o altro dato).
+public struct ForcedTerm: Codable, Sendable, Hashable, Identifiable {
+    public var value: String
+    public var label: String
+
+    public init(value: String, label: String) {
+        self.value = value
+        self.label = label
+    }
+
+    public var id: String { Vault.normalized(value) }
+
+    /// Le categorie fra cui scegliere, nell'ordine del menu.
+    public static let labels = ["ORG", "FULLNAME", "OTHER"]
+
+    public static func title(_ label: String) -> String {
+        switch label {
+        case "ORG": "Azienda o attività"
+        case "FULLNAME": "Persona"
+        default: "Altro dato"
+        }
     }
 }
 
@@ -44,7 +84,7 @@ public struct AnonymizationReport: Sendable, Equatable {
 
     /// «3 nomi, 2 codici fiscali, 1 IBAN»: prima i più numerosi, a pari numero nell'ordine delle categorie.
     public var summary: String {
-        func rank(_ label: String) -> Int { PIICategory.all.firstIndex(of: label) ?? .max }
+        func rank(_ label: String) -> Int { PIICategory.placeholderLabels.firstIndex(of: label) ?? .max }
         return counts.sorted { $0.value != $1.value ? $0.value > $1.value : rank($0.key) < rank($1.key) }
             .map { "\($0.value) \(PIICategory.name($0.key, count: $0.value))" }.joined(separator: ", ")
     }
@@ -96,7 +136,8 @@ public final class Anonymizer: Sendable {
         let source = PIIText(text)
         let found = try await finder.entities(in: source, progress: progress)
         let exceptions = Masking.normalizedExceptions(settings.exceptions)
-        let entities = Masking.withoutExceptions(Masking.masked(found, in: source, labels: settings.hidden), in: source, exceptions: exceptions)
+        let entities = Masking.withForced(Masking.withoutExceptions(Masking.masked(found, in: source, labels: settings.hidden), in: source,
+                                                                    exceptions: exceptions), in: source, terms: settings.forcedTerms)
         let hidden = settings.hidden
         let maskKnown = settings.maskKnownValues
         let (output, used, new) = try await store.update { (vault: inout Vault) -> (String, [String], Int) in

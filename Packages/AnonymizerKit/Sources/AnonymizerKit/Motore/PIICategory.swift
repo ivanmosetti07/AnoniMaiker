@@ -7,18 +7,21 @@ public enum PIICategory {
                              "BUILDINGNUM", "TARGA", "CATASTO", "DOCID", "IPADDR", "ORG", "AMOUNT", "DATE", "TIME", "AGE", "GENDER",
                              "CITY", "PROVINCE", "ZIPCODE", "URL"]
 
+    /// Le etichette che possono stare in un segnaposto: quelle del motore più «altro dato» di «nascondi sempre».
+    public static let placeholderLabels = all + ["OTHER"]
+
     static let names: [String: String] = [
         "FULLNAME": "nomi", "AGE": "età", "GENDER": "generi", "DATE": "date", "TIME": "orari", "STREET": "indirizzi", "BUILDINGNUM": "numeri civici",
         "ZIPCODE": "CAP", "CITY": "città", "PROVINCE": "province", "EMAIL": "email", "TELEPHONENUM": "telefoni", "CF": "codici fiscali",
         "PIVA": "partite IVA", "ID_DOC": "documenti d'identità", "IBAN": "IBAN", "CREDITCARDNUMBER": "carte", "AMOUNT": "importi", "TARGA": "targhe",
-        "ORG": "aziende", "DOCID": "codici di atti", "CATASTO": "dati catastali", "URL": "indirizzi web", "IPADDR": "indirizzi IP",
+        "ORG": "aziende", "OTHER": "altri dati", "DOCID": "codici di atti", "CATASTO": "dati catastali", "URL": "indirizzi web", "IPADDR": "indirizzi IP",
     ]
 
     /// Al singolare, per «1 codice fiscale» (non «1 codici fiscali»).
     static let singularNames: [String: String] = [
         "FULLNAME": "nome", "GENDER": "genere", "DATE": "data", "TIME": "orario", "STREET": "indirizzo", "BUILDINGNUM": "numero civico",
         "PROVINCE": "provincia", "TELEPHONENUM": "telefono", "CF": "codice fiscale", "PIVA": "partita IVA", "ID_DOC": "documento d'identità",
-        "CREDITCARDNUMBER": "carta", "AMOUNT": "importo", "TARGA": "targa", "ORG": "azienda", "DOCID": "codice di atto",
+        "CREDITCARDNUMBER": "carta", "AMOUNT": "importo", "TARGA": "targa", "ORG": "azienda", "OTHER": "altro dato", "DOCID": "codice di atto",
         "CATASTO": "dato catastale", "URL": "indirizzo web", "IPADDR": "indirizzo IP",
     ]
 

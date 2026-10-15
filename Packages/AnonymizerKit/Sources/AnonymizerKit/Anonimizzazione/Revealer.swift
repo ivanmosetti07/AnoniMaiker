@@ -25,9 +25,9 @@ public struct RevealResult: Sendable, Equatable {
 }
 
 public enum Revealer {
-    /// Solo le categorie del motore: «MAX_SIZE_1» in un pezzo di codice non è un segnaposto.
+    /// Solo le categorie dei segnaposto: «MAX_SIZE_1» in un pezzo di codice non è un segnaposto.
     static let regex: NSRegularExpression = {
-        let labels = PIICategory.all.sorted { $0.count > $1.count }
+        let labels = PIICategory.placeholderLabels.sorted { $0.count > $1.count }
             .map { NSRegularExpression.escapedPattern(for: $0).replacingOccurrences(of: "_", with: #"\\?_"#) }
             .joined(separator: "|")
         let inner = "(?:" + labels + #")\\?_\d+"#

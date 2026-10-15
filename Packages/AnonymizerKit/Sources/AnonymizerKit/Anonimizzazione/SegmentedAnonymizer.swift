@@ -27,7 +27,8 @@ extension Anonymizer {
         let (text, ranges) = content.layout()
         let found = try await finder.entities(in: text, progress: progress)
         let exceptions = Masking.normalizedExceptions(settings.exceptions)
-        let entities = Masking.withoutExceptions(Masking.masked(found, in: text, labels: settings.hidden), in: text, exceptions: exceptions)
+        let entities = Masking.withForced(Masking.withoutExceptions(Masking.masked(found, in: text, labels: settings.hidden), in: text,
+                                                                    exceptions: exceptions), in: text, terms: settings.forcedTerms)
 
         func trimmed(_ start: Int, _ end: Int) -> (Int, Int) {
             var start = start, end = end

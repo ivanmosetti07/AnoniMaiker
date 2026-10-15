@@ -68,13 +68,52 @@ private struct CategoriesSettings: View {
     }
 }
 
-/// «Mai nascondere»: nomi che devono restare in chiaro (la tua agenzia, i tuoi prodotti).
+/// Le eccezioni alle regole del motore: «nascondi sempre» (quello che non riconosce da solo) e «mai nascondere» (nomi
+/// che devono restare in chiaro, come la tua agenzia).
 private struct ExceptionsSettings: View {
     @Environment(AppModel.self) private var model
+    @State private var newForced = ""
+    @State private var forcedLabel = "ORG"
     @State private var newException = ""
 
     var body: some View {
         Form {
+            Section {
+                ForEach(model.settings.forcedTerms) { term in
+                    HStack {
+                        Text(term.value)
+                        Spacer()
+                        Picker("Categoria", selection: label(of: term)) {
+                            ForEach(ForcedTerm.labels, id: \.self) { Text(ForcedTerm.title($0)).tag($0) }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        Button("Rimuovi", systemImage: "minus.circle.fill") {
+                            model.settings.forcedTerms.removeAll { $0.id == term.id }
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                HStack {
+                    TextField("Per esempio «On Location»", text: $newForced)
+                        .onSubmit(addForced)
+                    Picker("Categoria", selection: $forcedLabel) {
+                        ForEach(ForcedTerm.labels, id: \.self) { Text(ForcedTerm.title($0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    Button("Aggiungi", action: addForced)
+                        .disabled(newForced.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } header: {
+                Text("Nascondi sempre")
+            } footer: {
+                Text("Nomi che il motore non riconosce da solo, per esempio un'attività dal nome vago. Diventano un segnaposto ovunque compaiano, senza badare a maiuscole e spazi, e tornano veri quando riconverti.")
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 ForEach(model.settings.exceptions, id: \.self) { exception in
                     HStack {
@@ -90,8 +129,8 @@ private struct ExceptionsSettings: View {
                 }
                 HStack {
                     TextField("Per esempio il nome della tua agenzia", text: $newException)
-                        .onSubmit(add)
-                    Button("Aggiungi", action: add)
+                        .onSubmit(addException)
+                    Button("Aggiungi", action: addException)
                         .disabled(newException.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             } header: {
@@ -104,10 +143,34 @@ private struct ExceptionsSettings: View {
         .formStyle(.grouped)
     }
 
-    private func add() {
+    private func label(of term: ForcedTerm) -> Binding<String> {
+        Binding(get: { term.label },
+                set: { label in
+                    guard let index = model.settings.forcedTerms.firstIndex(where: { $0.id == term.id }) else { return }
+                    model.settings.forcedTerms[index].label = label
+                })
+    }
+
+    private func addForced() {
+        let value = newForced.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        let term = ForcedTerm(value: value, label: forcedLabel)
+        // Una parola sola in un elenco: se c'era già, cambia solo la categoria.
+        if let index = model.settings.forcedTerms.firstIndex(where: { $0.id == term.id }) {
+            model.settings.forcedTerms[index] = term
+        } else {
+            model.settings.forcedTerms.append(term)
+        }
+        // Nascondere e lasciare in chiaro la stessa parola non ha senso: vince l'ultima scelta.
+        model.settings.exceptions.removeAll { ForcedTerm(value: $0, label: term.label).id == term.id }
+        newForced = ""
+    }
+
+    private func addException() {
         let value = newException.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty, !model.settings.exceptions.contains(value) else { return }
         model.settings.exceptions.append(value)
+        model.settings.forcedTerms.removeAll { $0.id == ForcedTerm(value: value, label: $0.label).id }
         newException = ""
     }
 }
