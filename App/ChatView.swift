@@ -17,6 +17,7 @@ struct ChatView: View {
             ConversationPane()
                 .frame(minWidth: 440, maxWidth: .infinity)
         }
+        .navigationTitle("Chat con GPT")
         .toolbar { toolbar }
         .task {
             if model.chat.codexStatus == nil { await model.refreshCodexStatus() }
@@ -128,48 +129,20 @@ private struct ConversationPane: View {
     }
 }
 
-/// Codex manca o non ha fatto l'accesso: come rimediare.
+/// Manca il collegamento a ChatGPT: si collega da qui.
 private struct CodexBanner: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        switch model.chat.codexStatus {
-        case .notInstalled:
-            banner("Per la chat serve Codex, la riga di comando di OpenAI che usa il tuo abbonamento ChatGPT.",
-                   command: "npm install -g @openai/codex", then: "Poi fai l'accesso con «codex login».")
-        case .notLoggedIn:
-            banner("Codex non ha fatto l'accesso al tuo account ChatGPT.", command: "codex login",
-                   then: "Si apre il browser: entra con l'account del tuo abbonamento.")
-        default:
-            EmptyView()
+        let missing = switch model.chat.codexStatus {
+        case .notInstalled, .notLoggedIn: true
+        default: false
         }
-    }
-
-    private func banner(_ text: String, command: String, then: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.bubble")
-                .foregroundStyle(.orange)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(text)
-                HStack {
-                    Text("Nel Terminale:")
-                    Text(command)
-                        .font(.body.monospaced())
-                        .textSelection(.enabled)
-                    Button("Copia", systemImage: "doc.on.doc") { model.copy(command) }
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.borderless)
-                        .help("Copia il comando")
-                }
-                Text(then).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("Controlla di nuovo") { Task { await model.refreshCodexStatus() } }
+        if missing || model.chat.connection != nil {
+            ChatGPTConnectView(compact: true)
+                .padding(12)
+                .background(Color.accentColor.opacity(0.08))
         }
-        .font(.callout)
-        .padding(12)
-        .background(.orange.opacity(0.08))
     }
 }
 

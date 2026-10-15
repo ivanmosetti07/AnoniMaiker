@@ -160,16 +160,11 @@ private struct ChatSettings: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("Codex") {
-                    HStack {
-                        status
-                        Button("Controlla") { Task { await model.refreshCodexStatus() } }
-                    }
-                }
+                ChatGPTConnectView()
             } header: {
-                Text("Abbonamento ChatGPT")
+                Text("Il tuo account ChatGPT")
             } footer: {
-                Text("La chat usa Codex, la riga di comando di OpenAI, con l'accesso al tuo account ChatGPT: nessuna chiave da inserire qui. Si installa con «npm install -g @openai/codex» e si collega con «codex login», dal Terminale.")
+                Text("Ognuno collega il proprio abbonamento ChatGPT, sul proprio Mac. La chat usa Codex di OpenAI: se manca, l'app lo installa al primo collegamento.")
                     .foregroundStyle(.secondary)
             }
             Section {
@@ -195,19 +190,5 @@ private struct ChatSettings: View {
             }
         }
         .formStyle(.grouped)
-        .task { if model.chat.codexStatus == nil { await model.refreshCodexStatus() } }
-    }
-
-    @ViewBuilder private var status: some View {
-        switch model.chat.codexStatus {
-        case nil:
-            ProgressView().controlSize(.small)
-        case .notInstalled:
-            Label("Non installato", systemImage: "xmark.circle.fill").foregroundStyle(.orange)
-        case .notLoggedIn:
-            Label("Accesso non fatto", systemImage: "person.crop.circle.badge.exclamationmark").foregroundStyle(.orange)
-        case .ready:
-            Label("Collegato al tuo account ChatGPT", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-        }
     }
 }

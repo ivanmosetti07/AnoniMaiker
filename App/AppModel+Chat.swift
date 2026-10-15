@@ -31,6 +31,10 @@ final class ChatState {
     /// L'ultimo errore, mostrato sotto la conversazione.
     var error: String?
     var codexStatus: CodexClient.Status?
+    /// Mentre si collega l'account ChatGPT.
+    var connection: ChatGPTConnection?
+    var connectionError: String?
+    @ObservationIgnored var connectionTask: Task<Void, Never>?
     @ObservationIgnored var task: Task<Void, Never>?
 
     var selected: ChatConversation? { conversations.first { $0.id == selectedID } }
@@ -254,5 +258,60 @@ extension AppModel {
         } catch {
             alert = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Il proprio account ChatGPT
+
+/// Collegare l'account: installare Codex (se manca) e fare l'accesso nel browser.
+enum ChatGPTConnection: Equatable {
+    case installing
+    case waitingForBrowser(URL?)
+}
+
+extension AppModel {
+    /// Ognuno collega il proprio abbonamento ChatGPT: se serve installa Codex, poi apre l'accesso di OpenAI nel browser.
+    func connectChatGPT() {
+        guard chat.connection == nil else { return }
+        chat.error = nil
+        chat.connectionError = nil
+        chat.connectionTask = Task {
+            defer {
+                chat.connection = nil
+                chat.connectionTask = nil
+            }
+            do {
+                if CodexClient.executable() == nil {
+                    chat.connection = .installing
+                    try await CodexClient.install()
+                }
+                chat.connection = .waitingForBrowser(nil)
+                let state = chat
+                try await CodexClient.login { url in
+                    Task { @MainActor in
+                        if case .waitingForBrowser = state.connection { state.connection = .waitingForBrowser(url) }
+                    }
+                }
+                appLog.notice("Account ChatGPT collegato")
+            } catch is CancellationError {
+            } catch {
+                chat.connectionError = error.localizedDescription
+            }
+            await refreshCodexStatus()
+        }
+    }
+
+    func cancelChatGPTConnection() {
+        chat.connectionTask?.cancel()
+    }
+
+    /// Toglie l'account ChatGPT da questo Mac (le conversazioni restano).
+    func disconnectChatGPT() async {
+        do {
+            try await CodexClient.logout()
+        } catch {
+            chat.connectionError = error.localizedDescription
+        }
+        await refreshCodexStatus()
     }
 }

@@ -38,9 +38,9 @@ public struct CodexClient: Sendable {
         public var errorDescription: String? {
             switch self {
             case .notInstalled:
-                "Codex non è installato. Installalo dal Terminale con «npm install -g @openai/codex» (oppure «brew install codex») e fai l'accesso con «codex login»."
+                "Il tuo account ChatGPT non è ancora collegato: premi «Collega il tuo account ChatGPT» (Impostazioni › Chat)."
             case .notLoggedIn:
-                "Codex non ha fatto l'accesso al tuo account ChatGPT. Dal Terminale: «codex login»."
+                "Il tuo account ChatGPT non è collegato: premi «Collega il tuo account ChatGPT» (Impostazioni › Chat)."
             case .failed(let message):
                 "GPT non ha risposto: \(message)"
             case .emptyReply:
@@ -90,6 +90,81 @@ public struct CodexClient: Sendable {
         guard output.status == 0, text.localizedCaseInsensitiveContains("logged in"), !text.localizedCaseInsensitiveContains("not logged in")
         else { return .notLoggedIn }
         return .ready(text.components(separatedBy: .newlines).last ?? text)
+    }
+
+    // MARK: Collegare il proprio account
+
+    public enum SetupError: LocalizedError, Equatable {
+        case needsNode
+        case installFailed(String)
+        case loginFailed(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case .needsNode:
+                "Per installare Codex serve Node.js (gratuito): scaricalo da nodejs.org, installalo e riprova."
+            case .installFailed(let detail):
+                "Installazione di Codex non riuscita: \(detail)"
+            case .loginFailed(let detail):
+                "Accesso a ChatGPT non completato: \(detail)"
+            }
+        }
+    }
+
+    static func tool(_ name: String) -> URL? {
+        searchPath.lazy.map { URL(filePath: $0 + "/" + name) }.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+
+    /// Installa Codex con npm (o Homebrew). Ognuno lo installa sul proprio Mac, una volta sola.
+    public static func install() async throws {
+        let attempt: (URL, [String])
+        if let npm = tool("npm") {
+            attempt = (npm, ["install", "-g", "@openai/codex"])
+        } else if let brew = tool("brew") {
+            attempt = (brew, ["install", "codex"])
+        } else {
+            throw SetupError.needsNode
+        }
+        let output = try await run(attempt.0, arguments: attempt.1, input: nil)
+        guard output.status == 0, executable() != nil else {
+            let detail = (output.stderr + "\n" + output.stdout).trimmingCharacters(in: .whitespacesAndNewlines)
+            if detail.contains("EACCES") {
+                throw SetupError.installFailed("npm non ha i permessi per installare programmi. Installa Node.js da nodejs.org (o usa Homebrew) e riprova.")
+            }
+            throw SetupError.installFailed(String(detail.suffix(300)))
+        }
+    }
+
+    /// L'indirizzo di accesso che Codex stampa (per aprirlo se il browser non parte da solo).
+    static func loginURL(in text: String) -> URL? {
+        guard let range = text.range(of: #"https://[^\s"'<>]+"#, options: .regularExpression) else { return nil }
+        return URL(string: String(text[range]))
+    }
+
+    /// Collega l'account ChatGPT di chi usa questo Mac: Codex apre il browser sulla pagina di accesso di OpenAI e aspetta.
+    /// `onURL` riceve l'indirizzo della pagina, da offrire se il browser non si apre.
+    public static func login(onURL: @escaping @Sendable (URL) -> Void) async throws {
+        guard let codex = executable() else { throw CodexError.notInstalled }
+        let seen = SeenURL()
+        let output = try await run(codex, arguments: ["login"], input: nil) { text in
+            if let url = loginURL(in: text), seen.first(url) { onURL(url) }
+        }
+        guard output.status == 0, await status() != .notLoggedIn else {
+            let detail = (output.stderr + "\n" + output.stdout).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SetupError.loginFailed(detail.isEmpty ? "accesso annullato." : String(detail.suffix(300)))
+        }
+    }
+
+    /// Scollega l'account ChatGPT da Codex su questo Mac.
+    public static func logout() async throws {
+        guard let codex = executable() else { return }
+        _ = try await run(codex, arguments: ["logout"], input: nil)
+    }
+
+    private final class SeenURL: @unchecked Sendable {
+        private let lock = NSLock()
+        private var done = false
+        func first(_ url: URL) -> Bool { lock.withLock { defer { done = true }; return !done } }
     }
 
     // MARK: Una richiesta
@@ -159,7 +234,8 @@ public struct CodexClient: Sendable {
     }
 
     /// Avvia Codex in una cartella vuota e aspetta che finisca; se il task viene annullato, lo ferma.
-    static func run(_ executable: URL, arguments: [String], input: Data?) async throws -> Output {
+    static func run(_ executable: URL, arguments: [String], input: Data?,
+                    onOutput: (@Sendable (String) -> Void)? = nil) async throws -> Output {
         let directory = FileManager.default.temporaryDirectory.appending(path: "chat-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -178,8 +254,16 @@ public struct CodexClient: Sendable {
         process.standardInput = input == nil ? FileHandle.nullDevice : stdin
 
         let collected = Collected()
-        stdout.fileHandleForReading.readabilityHandler = { handle in collected.append(handle.availableData, error: false) }
-        stderr.fileHandleForReading.readabilityHandler = { handle in collected.append(handle.availableData, error: true) }
+        stdout.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            collected.append(data, error: false)
+            if !data.isEmpty { onOutput?(String(decoding: data, as: UTF8.self)) }
+        }
+        stderr.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            collected.append(data, error: true)
+            if !data.isEmpty { onOutput?(String(decoding: data, as: UTF8.self)) }
+        }
 
         let status: Int32 = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in

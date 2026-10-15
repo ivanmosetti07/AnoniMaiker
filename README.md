@@ -45,15 +45,10 @@ primo cliente, il primo file, la chat. Si riapre da Aiuto › Guida di AnoniMaik
 **Aggiornamenti:** quando esce una nuova versione, l'app lo dice e la installa con un clic. Installa solo DMG firmati con
 la chiave del progetto, e i tuoi dati restano dove sono.
 
-**Chat con GPT (facoltativa):** serve un abbonamento ChatGPT e Codex, la riga di comando di OpenAI:
-
-```bash
-npm install -g @openai/codex
-```
-
-```bash
-codex login
-```
+**Chat con GPT (facoltativa):** ognuno collega il proprio abbonamento ChatGPT con il pulsante **Collega il tuo account
+ChatGPT** (nella chat o in Impostazioni › Chat). L'accesso si fa sul sito di OpenAI e l'app non vede la password. Dietro
+c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo collegamento. Per farlo serve Node.js
+([nodejs.org](https://nodejs.org)) oppure Homebrew.
 
 ## Cosa c'è
 
@@ -115,9 +110,9 @@ codex login
 
 ### Chat con GPT
 
-- **Con il tuo abbonamento ChatGPT.** La chat usa Codex, la riga di comando di OpenAI, con l'accesso già fatto al tuo
-  account: nell'app non ci sono chiavi da inserire. Codex si installa con `npm install -g @openai/codex` e si collega
-  con `codex login`. Lo stato si vede in Impostazioni › Chat.
+- **Con il tuo abbonamento ChatGPT.** Ognuno collega il proprio account con un pulsante: l'app installa Codex (la riga
+  di comando di OpenAI) se manca, e apre l'accesso di OpenAI nel browser. Nell'app non ci sono chiavi né password. Da
+  Impostazioni › Chat si vede lo stato e si scollega l'account.
 - **Parte solo quello che è anonimizzato.** Domanda, allegati e conversazione precedente passano dal motore di
   anonimizzazione con il dizionario unico. Senza motore la chat non parte. La risposta torna con i dati veri, e i
   segnaposto che GPT inventa si segnalano. Sotto ogni messaggio c'è «Cosa è partito» (o «Com'è arrivata») con i

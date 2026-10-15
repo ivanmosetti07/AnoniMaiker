@@ -86,9 +86,9 @@ In alternativa, dal Terminale, dopo averla copiata in Applicazioni:
 
 Requisiti: macOS 26 o successivo, Mac con Apple Silicon o Intel, circa 1,5 GB di memoria libera mentre il motore lavora.
 
-Chat con GPT (facoltativa): serve un abbonamento ChatGPT e Codex, la riga di comando di OpenAI.
-Nel Terminale:  npm install -g @openai/codex   e poi   codex login
-(per npm serve Node.js: https://nodejs.org, oppure con Homebrew: brew install codex)
+Chat con GPT (facoltativa): serve un tuo abbonamento ChatGPT. Nella chat premi «Collega il tuo account ChatGPT»:
+l'app prepara Codex (la riga di comando di OpenAI) e apre l'accesso nel browser. Per la prima installazione di Codex
+serve Node.js (https://nodejs.org) oppure Homebrew.
 
 Tutti i dati restano cifrati sul tuo Mac. Fai subito una copia di sicurezza con password (File › Crea copia di
 sicurezza…): senza, su un Mac nuovo i dati non si riaprono.

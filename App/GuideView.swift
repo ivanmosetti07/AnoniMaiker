@@ -33,8 +33,9 @@ struct GuideView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, 36)
             .padding(.top, 30)
+            // Una pagina alla volta: niente dissolvenza, che sovrapporrebbe i testi delle due pagine.
             .id(page)
-            .transition(.opacity)
+            .transaction { $0.animation = nil }
 
             Divider()
             HStack {
@@ -51,10 +52,10 @@ struct GuideView: View {
                 }
                 Spacer()
                 if page > 0 {
-                    Button("Indietro") { withAnimation { page -= 1 } }
+                    Button("Indietro") { page -= 1 }
                 }
                 if page < Self.pages - 1 {
-                    Button("Avanti") { withAnimation { page += 1 } }
+                    Button("Avanti") { page += 1 }
                         .keyboardShortcut(.defaultAction)
                 } else {
                     Button("Inizia") { close() }
@@ -64,7 +65,6 @@ struct GuideView: View {
             .padding(16)
         }
         .frame(width: 640, height: 520)
-        .task { if model.chat.codexStatus == nil { await model.refreshCodexStatus() } }
     }
 
     private func close(then action: GuideAction? = nil) {
@@ -76,9 +76,11 @@ struct GuideView: View {
 
     private var welcome: some View {
         VStack(spacing: 18) {
-            Image(nsImage: NSApp.applicationIconImage)
+            Image("Simbolo")
                 .resizable()
+                .scaledToFit()
                 .frame(width: 88, height: 88)
+                .accessibilityHidden(true)
             Image("Logotipo")
                 .resizable()
                 .scaledToFit()
@@ -165,51 +167,12 @@ struct GuideView: View {
 
     private var chat: some View {
         page(title: "Chat con GPT (facoltativa)", symbol: "bubble.left.and.text.bubble.right") {
-            point("person.badge.key", "Con il tuo abbonamento ChatGPT", "La chat usa Codex, la riga di comando di OpenAI: niente chiavi da inserire nell'app. Domanda e allegati partono già anonimizzati, la risposta torna con i dati veri.")
-            VStack(alignment: .leading, spacing: 8) {
-                codexStatus
-                command("npm install -g @openai/codex", note: "installa Codex (serve Node.js: nodejs.org)")
-                command("codex login", note: "accedi con il tuo account ChatGPT")
-            }
-            .padding(.leading, 40)
+            point("person.badge.key", "Con il tuo abbonamento ChatGPT", "Ognuno collega il proprio account, con un clic: l'accesso si fa sul sito di OpenAI e nell'app non ci sono chiavi né password. Domanda e allegati partono già anonimizzati, la risposta torna con i dati veri.")
+            ChatGPTConnectView()
+                .padding(.leading, 40)
             Button("Apri la chat") { close(then: .chat) }
                 .controlSize(.large)
                 .padding(.top, 4)
-        }
-    }
-
-    @ViewBuilder private var codexStatus: some View {
-        HStack {
-            switch model.chat.codexStatus {
-            case nil:
-                ProgressView().controlSize(.small)
-                Text("Controllo Codex…")
-            case .ready:
-                Label("Codex è pronto: puoi già usare la chat", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            case .notLoggedIn:
-                Label("Codex è installato ma manca l'accesso", systemImage: "person.crop.circle.badge.exclamationmark").foregroundStyle(.orange)
-            case .notInstalled:
-                Label("Codex non è installato", systemImage: "xmark.circle").foregroundStyle(.orange)
-            }
-            Button("Controlla di nuovo") { Task { await model.refreshCodexStatus() } }
-                .buttonStyle(.link)
-        }
-        .font(.callout)
-    }
-
-    private func command(_ text: String, note: String) -> some View {
-        HStack(spacing: 8) {
-            Text(text)
-                .font(.callout.monospaced())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.secondary.opacity(0.12), in: .rect(cornerRadius: 5))
-                .textSelection(.enabled)
-            Button("Copia", systemImage: "doc.on.doc") { model.copy(text) }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help("Copia il comando, poi incollalo nel Terminale")
-            Text(note).font(.caption).foregroundStyle(.secondary)
         }
     }
 

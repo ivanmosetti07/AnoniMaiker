@@ -27,6 +27,13 @@ import Testing
         #expect(CodexClient.classify("", status: 0) == .emptyReply)
     }
 
+    @Test func loginPageIsFoundInCodexOutput() {
+        let output = "Starting local login server on http://localhost:1455.\nIf your browser did not open, navigate to this URL to authenticate:\n\nhttps://auth.openai.com/oauth/authorize?response_type=code&client_id=abc&state=xyz\n"
+        // Il server locale (http) non conta: serve la pagina di accesso di OpenAI.
+        #expect(CodexClient.loginURL(in: output)?.absoluteString == "https://auth.openai.com/oauth/authorize?response_type=code&client_id=abc&state=xyz")
+        #expect(CodexClient.loginURL(in: "Successfully logged in") == nil)
+    }
+
     @Test func codexRunsIsolated() {
         let arguments = CodexClient(model: " ", effort: .high).arguments()
         #expect(arguments.starts(with: ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "-s", "read-only"]))

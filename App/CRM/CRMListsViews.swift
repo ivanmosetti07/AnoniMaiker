@@ -121,6 +121,7 @@ struct DealsView: View {
                 } description: {
                     Text(model.crm.companies.isEmpty ? "Crea prima un'azienda: ogni trattativa appartiene a un cliente." : "Preventivi e opportunità dei tuoi clienti.")
                 }
+                .frame(maxHeight: .infinity)
             } else {
                 List(deals) { deal in
                     DealRow(deal: deal, showCompany: true)
