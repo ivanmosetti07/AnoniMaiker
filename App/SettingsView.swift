@@ -23,7 +23,7 @@ private struct CategoriesSettings: View {
         @Bindable var model = model
         Form {
             group("Dati personali", note: "Dicono chi è una persona o danno accesso ai suoi conti.", labels: PIICategory.personal)
-            group("Aziende", note: "In un CRM l'azienda è il cliente: di serie si nasconde.", labels: PIICategory.companies)
+            group("Aziende", note: "I nomi di aziende nei testi, compresi i tuoi clienti: di serie si nascondono.", labels: PIICategory.companies)
             group("Dati di lavoro", note: "Di serie restano in chiaro: servono all'AI per conti, scadenze e confronti.",
                   labels: PIICategory.workingData)
             Section {

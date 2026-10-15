@@ -26,16 +26,16 @@ struct CompaniesView: View {
         Group {
             if model.crm.companies.isEmpty {
                 ContentUnavailableView {
-                    Label("Nessuna azienda", systemImage: "building.2")
+                    Label("Nessun cliente", systemImage: "building.2")
                 } description: {
                     Text("Aggiungi il primo cliente: i suoi dati restano su questo Mac, cifrati, e dalla sua scheda ne anonimizzi i documenti.")
                 } actions: {
-                    Button("Nuova azienda") { editing = Company() }
+                    Button("Nuovo cliente") { editing = Company() }
                         .buttonStyle(.borderedProminent)
                 }
             } else {
                 Table(companies, selection: $selection) {
-                    TableColumn("Azienda") { company in
+                    TableColumn("Cliente") { company in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(company.name).fontWeight(.medium)
                             if !company.sector.isEmpty { Text(company.sector).font(.caption).foregroundStyle(.secondary) }
@@ -63,7 +63,7 @@ struct CompaniesView: View {
                 }
             }
         }
-        .navigationTitle("Aziende")
+        .navigationTitle("Clienti")
         .navigationSubtitle(model.crm.companies.isEmpty ? "" : "\(model.crm.companies.count)")
         .searchable(text: $search, prompt: "Cerca nome, città, settore o partita IVA")
         .toolbar {
@@ -74,7 +74,7 @@ struct CompaniesView: View {
                 }
                 .pickerStyle(.menu)
                 .help("Filtra per stato")
-                Button("Nuova azienda", systemImage: "plus") { editing = Company() }
+                Button("Nuovo cliente", systemImage: "plus") { editing = Company() }
                     .disabled(!model.isVaultReady)
             }
         }

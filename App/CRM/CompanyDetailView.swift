@@ -22,7 +22,7 @@ struct CompanyDetailView: View {
         if let company = model.crm.company(companyID) {
             content(company)
         } else {
-            ContentUnavailableView("Azienda non trovata", systemImage: "building.2")
+            ContentUnavailableView("Cliente non trovato", systemImage: "building.2")
         }
     }
 

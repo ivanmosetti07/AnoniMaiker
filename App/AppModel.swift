@@ -21,7 +21,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .anonymize: "Anonimizza"
         case .reveal: "Riconverti"
         case .chat: "Chat con GPT"
-        case .companies: "Aziende"
+        case .companies: "Clienti"
         case .contacts: "Contatti"
         case .deals: "Trattative"
         case .activities: "Attività"

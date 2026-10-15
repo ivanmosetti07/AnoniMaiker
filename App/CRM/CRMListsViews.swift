@@ -34,7 +34,7 @@ struct ContactsView: View {
                     TableColumn("Nome") { contact in Text(contact.fullName).fontWeight(.medium) }
                         .width(min: 140, ideal: 180)
                     TableColumn("Ruolo") { contact in Text(contact.role) }
-                    TableColumn("Azienda") { contact in Text(model.crm.company(contact.companyID)?.name ?? "—") }
+                    TableColumn("Cliente") { contact in Text(model.crm.company(contact.companyID)?.name ?? "—") }
                     TableColumn("Email") { contact in Text(contact.email).textSelection(.enabled) }
                     TableColumn("Telefono") { contact in Text(contact.mobile.isEmpty ? contact.phone : contact.mobile).monospacedDigit() }
                 }
@@ -42,7 +42,7 @@ struct ContactsView: View {
                     if let id = ids.first, let contact = model.crm.contact(id) {
                         Button("Modifica…") { editing = contact }
                         if let companyID = contact.companyID {
-                            Button("Apri l'azienda") { model.openCompany(companyID) }
+                            Button("Apri il cliente") { model.openCompany(companyID) }
                         }
                         Divider()
                         Button("Elimina", role: .destructive) { Task { await model.deleteContact(id) } }
@@ -54,7 +54,7 @@ struct ContactsView: View {
         }
         .navigationTitle("Contatti")
         .navigationSubtitle(model.crm.contacts.isEmpty ? "" : "\(model.crm.contacts.count)")
-        .searchable(text: $search, prompt: "Cerca nome, email, ruolo o azienda")
+        .searchable(text: $search, prompt: "Cerca nome, email, ruolo o cliente")
         .toolbar {
             Button("Nuovo contatto", systemImage: "plus") { editing = Contact() }
                 .disabled(!model.isVaultReady)
@@ -119,7 +119,7 @@ struct DealsView: View {
                 ContentUnavailableView {
                     Label(filter == .open ? "Nessuna trattativa aperta" : "Nessuna trattativa", systemImage: "eurosign.circle")
                 } description: {
-                    Text(model.crm.companies.isEmpty ? "Crea prima un'azienda: ogni trattativa appartiene a un cliente." : "Preventivi e opportunità dei tuoi clienti.")
+                    Text(model.crm.companies.isEmpty ? "Aggiungi prima un cliente: ogni trattativa appartiene a un cliente." : "Preventivi e opportunità dei tuoi clienti.")
                 }
                 .frame(maxHeight: .infinity)
             } else {
@@ -128,7 +128,7 @@ struct DealsView: View {
                         .onTapGesture(count: 2) { editing = deal }
                         .contextMenu {
                             Button("Modifica…") { editing = deal }
-                            Button("Apri l'azienda") { model.openCompany(deal.companyID) }
+                            Button("Apri il cliente") { model.openCompany(deal.companyID) }
                             Divider()
                             Button("Elimina", role: .destructive) { Task { await model.deleteDeal(deal.id) } }
                         }
@@ -141,7 +141,7 @@ struct DealsView: View {
                 if let first = model.companyChoices.first { editing = Deal(companyID: first.id) }
             }
             .disabled(model.crm.companies.isEmpty || !model.isVaultReady)
-            .help(model.crm.companies.isEmpty ? "Crea prima un'azienda" : "Nuova trattativa")
+            .help(model.crm.companies.isEmpty ? "Aggiungi prima un cliente" : "Nuova trattativa")
         }
         .sheet(item: $editing) { DealEditor(deal: $0) }
     }
@@ -177,7 +177,7 @@ struct ActivitiesView: View {
                         .contextMenu {
                             Button("Modifica…") { editing = activity }
                             if let companyID = activity.companyID {
-                                Button("Apri l'azienda") { model.openCompany(companyID) }
+                                Button("Apri il cliente") { model.openCompany(companyID) }
                             }
                             Divider()
                             Button("Elimina", role: .destructive) { Task { await model.deleteActivity(activity.id) } }

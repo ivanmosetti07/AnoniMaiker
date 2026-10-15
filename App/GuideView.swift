@@ -145,7 +145,7 @@ struct GuideView: View {
 
     private var clients: some View {
         page(title: "I tuoi clienti nel CRM", symbol: "building.2") {
-            point("building.2", "Aziende e contatti", "Inserisci ragione sociale, partita IVA e referenti: l'app li nasconde anche dove il motore non li riconoscerebbe.")
+            point("building.2", "Clienti e contatti", "Per ogni cliente inserisci ragione sociale, partita IVA e referenti: l'app li nasconde anche dove il motore non li riconoscerebbe.")
             point("doc.on.doc", "Documenti del cliente", "Archivia contratti, preventivi ed Excel: per ognuno tieni l'originale, la versione anonimizzata e le risposte dell'AI.")
             point("eurosign.circle", "Trattative, note e attività", "Con fase, importo, scadenze. La scheda del cliente si può dare all'AI già anonimizzata.")
             Button("Aggiungi il primo cliente") { close(then: .addClient) }

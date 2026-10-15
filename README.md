@@ -68,7 +68,7 @@ c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo c
 
 ### CRM e copia di sicurezza
 
-- **CRM dentro l'app:** aziende (i clienti), contatti, trattative con importo, fase e probabilità, note e attività con
+- **CRM dentro l'app:** clienti, contatti, trattative con importo, fase e probabilità, note e attività con
   scadenze, documenti.
 - **Scheda del cliente.** Ci sono panoramica, documenti, note e attività, trattative. I dati che il CRM conosce
   (ragione sociale, P.IVA, nomi ed email dei contatti) si nascondono anche dove il modello non li riconosce, e ogni
@@ -188,7 +188,7 @@ anonimizzazione», e la licenza MIT sta in `App/Risorse/Licenze.md`.
 |---|---|
 | `App/` | L'app SwiftUI: banchi «Anonimizza» e «Riconverti», dizionario, impostazioni, copia di sicurezza |
 | `App/ChatView.swift`, `App/AppModel+Chat.swift` | La chat con GPT |
-| `App/CRM/` | Aziende, scheda del cliente, documenti, contatti, trattative, attività, fogli di modifica |
+| `App/CRM/` | Clienti, scheda del cliente, documenti, contatti, trattative, attività, fogli di modifica |
 | `Packages/AnonymizerKit/` | Motore, cartella cifrata, copia di sicurezza, dizionario, CRM, test e la CLI `anonimizza` |
 | `Packages/AnonymizerKit/Sources/AnonymizerKit/Chat/` | Client Codex, scudo della chat, conversazioni cifrate |
 | `Packages/AnonymizerKit/Sources/AnonymizerKit/Documenti/` | ZIP e XML senza librerie esterne, CSV, Excel, Word, PDF (con OCR) |
@@ -252,7 +252,7 @@ così quelli già salvati restano dove sono:
 
 - `chiave.json`: la chiave dei dati, sigillata dalla Secure Enclave e quindi utilizzabile solo su questo Mac.
 - `dizionario.sigillato`: il dizionario.
-- `crm.sigillato`: aziende, contatti, trattative, attività e l'elenco dei documenti.
+- `crm.sigillato`: clienti, contatti, trattative, attività e l'elenco dei documenti.
 - `documenti/`: il testo di ogni versione di ogni documento, ciascuno in un file cifrato.
 - `chat.sigillato`: le conversazioni con GPT.
 

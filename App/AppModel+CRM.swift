@@ -195,7 +195,7 @@ extension AppModel {
     /// La scheda in Markdown e la sua versione anonimizzata (con i dati noti del cliente).
     func dossier(for companyID: UUID) async throws -> (original: String, anonymized: AnonymizationResult) {
         guard let engine else { throw EngineError.notInstalled }
-        guard let markdown = ClientDossier.markdown(for: companyID, in: crm) else { throw EngineError.failed("azienda non trovata") }
+        guard let markdown = ClientDossier.markdown(for: companyID, in: crm) else { throw EngineError.failed("cliente non trovato") }
         let anonymizer = Anonymizer(engine: engine, store: store)
         let result = try await anonymizer.anonymize(markdown, settings: settings, client: companyID, known: crm.knownValues(for: companyID))
         await refreshVault()

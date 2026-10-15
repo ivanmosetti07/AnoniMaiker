@@ -42,7 +42,7 @@ public struct BackupSummary: Codable, Sendable, Equatable {
     /// «120 voci nel dizionario, 12 aziende, 30 contatti…»
     public var description: String {
         func part(_ count: Int, _ one: String, _ many: String) -> String { "\(count) \(count == 1 ? one : many)" }
-        return [part(dictionaryEntries, "voce nel dizionario", "voci nel dizionario"), part(companies, "azienda", "aziende"),
+        return [part(dictionaryEntries, "voce nel dizionario", "voci nel dizionario"), part(companies, "cliente", "clienti"),
                 part(contacts, "contatto", "contatti"), part(deals, "trattativa", "trattative"),
                 part(activities, "nota o attività", "note e attività"), part(documents, "documento", "documenti")]
             .joined(separator: ", ")
