@@ -46,17 +46,19 @@ struct TablePreview: View {
                 Divider()
             }
             if let sheet = sheets.indices.contains(index) ? sheets[index] : nil, !sheet.rows.isEmpty {
+                let widths = Self.columnWidths(sheet.rows)
                 ScrollView([.horizontal, .vertical]) {
-                    Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+                    Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
                         ForEach(sheet.rows.indices, id: \.self) { r in
                             GridRow {
                                 ForEach(sheet.rows[r].indices, id: \.self) { c in
-                                    cell(sheet.rows[r][c], header: r == 0, changed: changed(r, c))
+                                    cell(sheet.rows[r][c], width: widths[c], header: r == 0, changed: changed(r, c))
                                 }
                             }
                         }
                     }
                     .padding(10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
                 Text("Foglio vuoto").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -70,15 +72,30 @@ struct TablePreview: View {
         return compared[index].rows[row][column] != sheets[index].rows[row][column]
     }
 
-    private func cell(_ text: String, header: Bool, changed: Bool) -> some View {
+    /// La larghezza di ogni colonna, dalla riga di testo più lunga (fra 70 e 280 punti). Con la larghezza decisa prima,
+    /// la griglia misura l'altezza delle righe sul testo già andato a capo: una cella lunga allunga la sua riga invece di
+    /// coprire quelle sotto.
+    static func columnWidths(_ rows: [[String]]) -> [CGFloat] {
+        let columns = rows.map(\.count).max() ?? 0
+        return (0..<columns).map { c in
+            let longest = rows.compactMap { $0.indices.contains(c) ? $0[c] : nil }
+                .flatMap { $0.split(separator: "\n", omittingEmptySubsequences: false) }
+                .map(\.count).max() ?? 0
+            return min(280, max(70, CGFloat(longest) * 7.4 + 18))
+        }
+    }
+
+    private func cell(_ text: String, width: CGFloat, header: Bool, changed: Bool) -> some View {
         Text(attributed(text))
             .font(.callout)
             .fontWeight(header ? .semibold : .regular)
-            .lineLimit(3)
+            .lineLimit(8)
+            .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .frame(minWidth: 70, maxWidth: 280, alignment: .leading)
+            .frame(width: width, alignment: .topLeading)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
             .background(changed ? Color.accentColor.opacity(0.14) : header ? Color.secondary.opacity(0.08) : .clear)
             .overlay(Rectangle().stroke(Color.secondary.opacity(0.18), lineWidth: 0.5))
     }
