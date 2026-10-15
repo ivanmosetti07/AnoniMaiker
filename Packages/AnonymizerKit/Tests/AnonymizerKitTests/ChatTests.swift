@@ -34,8 +34,34 @@ import Testing
         #expect(CodexClient.loginURL(in: "Successfully logged in") == nil)
     }
 
+    /// Si scelgono solo terra, luna e sol dalla versione 6; i livelli di ragionamento sono quelli del modello.
+    @Test func onlyAllowedModelsAreOffered() {
+        let catalog = """
+        {"models":[
+          {"slug":"gpt-6-astra","display_name":"GPT-6-Astra","visibility":"list","priority":2,"supported_reasoning_levels":[{"effort":"low"}]},
+          {"slug":"gpt-6-sol","display_name":"GPT-6-Sol","description":"Il più capace","visibility":"list","priority":3,
+           "default_reasoning_level":"medium","supported_reasoning_levels":[{"effort":"low"},{"effort":"medium"},{"effort":"ultra"}]},
+          {"slug":"gpt-6-luna","display_name":"GPT-6-Luna","visibility":"list","priority":4,"supported_reasoning_levels":[{"effort":"low"}]},
+          {"slug":"gpt-7-terra","display_name":"GPT-7-Terra","visibility":"list","priority":9},
+          {"slug":"gpt-6.1-terra","visibility":"hide","priority":1},
+          {"slug":"gpt-5.6-sol","display_name":"GPT-5.6-Sol","visibility":"list","priority":5},
+          {"slug":"gpt-5.6-terra","display_name":"GPT-5.6-Terra","visibility":"list","priority":8},
+          {"slug":"codex-auto-review","visibility":"hide","priority":43}
+        ]}
+        """
+        let models = CodexClient.parseModels(Data(catalog.utf8))
+        #expect(models.map(\.slug) == ["gpt-7-terra", "gpt-6-sol", "gpt-6-luna"])
+        let sol = models[1]
+        #expect(sol.name == "GPT-6-Sol" && sol.summary == "Il più capace")
+        #expect(sol.efforts == ["low", "medium", "ultra"] && sol.defaultEffort == "medium")
+        #expect(CodexClient.effortTitle("xhigh") == "Molto accurato")
+        #expect(CodexClient.parseModels(Data("non json".utf8)).isEmpty)
+        // Un livello strano non arriva mai nella riga di comando.
+        #expect(!CodexClient(effort: "high\"; rm").arguments().contains { $0.contains("rm") })
+    }
+
     @Test func codexRunsIsolated() {
-        let arguments = CodexClient(model: " ", effort: .high).arguments()
+        let arguments = CodexClient(model: " ", effort: "high").arguments()
         #expect(arguments.starts(with: ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "-s", "read-only"]))
         #expect(arguments.contains("shell_tool") && arguments.contains(#"web_search="disabled""#))
         #expect(arguments.contains(#"model_reasoning_effort="high""#))

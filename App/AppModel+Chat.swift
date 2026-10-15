@@ -33,9 +33,13 @@ final class ChatState {
     var draft = ""
     var pending: [PendingAttachment] = []
     var phase: Phase?
+    /// Cambia quando si sceglie un altro modello (per aggiornare chi lo mostra).
+    var modelRevision = 0
     /// L'ultimo errore, mostrato sotto la conversazione.
     var error: String?
     var codexStatus: CodexClient.Status?
+    /// I modelli che si possono scegliere (terra, luna e sol dalla versione 6), dal catalogo di Codex.
+    var models: [CodexModel] = []
     /// Mentre si collega l'account ChatGPT.
     var connection: ChatGPTConnection?
     var connectionError: String?
@@ -52,14 +56,37 @@ extension AppModel {
     static let chatModelKey = "chat.modello"
     static let chatEffortKey = "chat.ragionamento"
 
+    /// Il modello scelto, se è fra quelli ammessi; altrimenti il primo della lista.
+    var chatModel: CodexModel? {
+        let saved = UserDefaults.standard.string(forKey: Self.chatModelKey)
+        return chat.models.first { $0.slug == saved } ?? chat.models.first
+    }
+
     var codexClient: CodexClient {
         let defaults = UserDefaults.standard
-        return CodexClient(model: defaults.string(forKey: Self.chatModelKey),
-                           effort: defaults.string(forKey: Self.chatEffortKey).flatMap(CodexClient.Effort.init(rawValue:)))
+        let saved = defaults.string(forKey: Self.chatModelKey)
+        // Solo terra, luna e sol dalla versione 6: se il catalogo non si legge, vale il nome salvato solo se ammesso.
+        let model = chatModel?.slug ?? saved.flatMap { CodexModel.isAllowed($0) ? $0 : nil }
+        let effort = defaults.string(forKey: Self.chatEffortKey).flatMap { effort in
+            chatModel.map { $0.efforts.contains(effort) } ?? true ? effort : nil
+        }
+        return CodexClient(model: model, effort: effort)
     }
 
     func refreshCodexStatus() async {
         chat.codexStatus = await CodexClient.status()
+        chat.models = await CodexClient.models()
+    }
+
+    /// Sceglie il modello; il ragionamento torna quello predefinito se il nuovo modello non lo accetta.
+    func chooseChatModel(_ slug: String) {
+        let defaults = UserDefaults.standard
+        defaults.set(slug, forKey: Self.chatModelKey)
+        if let effort = defaults.string(forKey: Self.chatEffortKey), let model = chat.models.first(where: { $0.slug == slug }),
+           !model.efforts.contains(effort) {
+            defaults.removeObject(forKey: Self.chatEffortKey)
+        }
+        chat.modelRevision += 1
     }
 
     // MARK: Conversazioni

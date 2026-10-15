@@ -76,6 +76,7 @@ private struct ChatHeader: View {
             .menuIndicator(.hidden)
             .disabled(chat.isBusy)
             Spacer()
+            ChatModelMenu()
             Button("Nuova conversazione", systemImage: "square.and.pencil") { model.newConversation() }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
@@ -102,6 +103,47 @@ private struct ChatHeader: View {
             Button("Elimina", role: .destructive) { Task { await model.deleteConversation(conversation.id) } }
         } message: { conversation in
             Text("«\(conversation.displayTitle)» si cancella da questo Mac. Documenti e dizionario non cambiano.")
+        }
+    }
+}
+
+/// Il modello in uso, con il menu per cambiarlo (solo terra, luna e sol dalla versione 6).
+private struct ChatModelMenu: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(AppModel.chatEffortKey) private var effort = ""
+
+    var body: some View {
+        let _ = model.chat.modelRevision
+        let current = model.chatModel
+        if !model.chat.models.isEmpty {
+            Menu {
+                Picker("Modello", selection: Binding(get: { current?.slug ?? "" }, set: { model.chooseChatModel($0) })) {
+                    ForEach(model.chat.models) { item in
+                        Text(item.name).tag(item.slug)
+                    }
+                }
+                .pickerStyle(.inline)
+                if let current, !current.efforts.isEmpty {
+                    Picker("Ragionamento", selection: $effort) {
+                        Text("Predefinito").tag("")
+                        ForEach(current.efforts, id: \.self) { level in
+                            Text(CodexClient.effortTitle(level)).tag(level)
+                        }
+                    }
+                }
+            } label: {
+                Text(current?.name ?? "Modello")
+                    .font(.caption)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: .capsule)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(model.chat.isBusy)
+            .help("Il modello di GPT per questa chat")
         }
     }
 }

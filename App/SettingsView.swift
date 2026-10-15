@@ -154,8 +154,6 @@ private struct EngineSettings: View {
 /// La chat con GPT: Codex, modello e ragionamento.
 private struct ChatSettings: View {
     @Environment(AppModel.self) private var model
-    @AppStorage(AppModel.chatModelKey) private var modelName = ""
-    @AppStorage(AppModel.chatEffortKey) private var effort = ""
 
     var body: some View {
         Form {
@@ -168,15 +166,9 @@ private struct ChatSettings: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                TextField("Modello", text: $modelName, prompt: Text("Quello predefinito di Codex"))
-                Picker("Ragionamento", selection: $effort) {
-                    Text("Predefinito").tag("")
-                    ForEach(CodexClient.Effort.allCases) { effort in
-                        Text(effort.title).tag(effort.rawValue)
-                    }
-                }
+                ChatModelPicker()
             } footer: {
-                Text("Più ragionamento vuol dire risposte più curate ma più lente.")
+                Text("Si possono scegliere solo i modelli delle famiglie terra, luna e sol dalla versione 6 in poi, fra quelli che il tuo abbonamento vede in Codex. Più ragionamento vuol dire risposte più curate ma più lente.")
                     .foregroundStyle(.secondary)
             }
             Section {
@@ -190,5 +182,37 @@ private struct ChatSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Il modello di GPT e il suo ragionamento: solo terra, luna e sol dalla versione 6.
+struct ChatModelPicker: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(AppModel.chatEffortKey) private var effort = ""
+
+    var body: some View {
+        let models = model.chat.models
+        let current = model.chatModel
+        let _ = model.chat.modelRevision
+        if models.isEmpty {
+            LabeledContent("Modello") {
+                Text(model.chat.codexStatus == nil ? "Leggo i modelli…" : "Nessun modello disponibile: collega il tuo account ChatGPT")
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Picker("Modello", selection: Binding(get: { current?.slug ?? "" }, set: { model.chooseChatModel($0) })) {
+                ForEach(models) { item in
+                    Text(item.name).tag(item.slug)
+                }
+            }
+            if let current, !current.efforts.isEmpty {
+                Picker("Ragionamento", selection: $effort) {
+                    Text("Predefinito" + (current.defaultEffort.map { " (\(CodexClient.effortTitle($0).lowercased()))" } ?? "")).tag("")
+                    ForEach(current.efforts, id: \.self) { level in
+                        Text(CodexClient.effortTitle(level)).tag(level)
+                    }
+                }
+            }
+        }
     }
 }

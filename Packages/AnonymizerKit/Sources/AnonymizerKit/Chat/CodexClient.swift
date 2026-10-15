@@ -8,18 +8,17 @@ import Foundation
 // eventi JSON, uno per riga; la risposta è nell'evento `item.completed` di tipo `agent_message`.
 
 public struct CodexClient: Sendable {
-    /// Quanto ragiona il modello: più ragiona, più è lento.
-    public enum Effort: String, Codable, Sendable, CaseIterable, Identifiable {
-        case low, medium, high
-
-        public var id: String { rawValue }
-
-        public var title: String {
-            switch self {
-            case .low: "Veloce"
-            case .medium: "Normale"
-            case .high: "Accurato"
-            }
+    /// Quanto ragiona il modello (i livelli che il modello accetta stanno nel catalogo): più ragiona, più è lento.
+    public static func effortTitle(_ effort: String) -> String {
+        switch effort {
+        case "minimal": "Minimo"
+        case "low": "Veloce"
+        case "medium": "Normale"
+        case "high": "Accurato"
+        case "xhigh": "Molto accurato"
+        case "max": "Massimo"
+        case "ultra": "Ultra"
+        default: effort
         }
     }
 
@@ -55,9 +54,9 @@ public struct CodexClient: Sendable {
                                    "image_generation", "view_image", "multi_agent", "goals", "hooks", "sleep_tool"]
 
     public var model: String?
-    public var effort: Effort?
+    public var effort: String?
 
-    public init(model: String? = nil, effort: Effort? = nil) {
+    public init(model: String? = nil, effort: String? = nil) {
         self.model = model?.trimmingCharacters(in: .whitespaces).isEmpty == false ? model : nil
         self.effort = effort
     }
@@ -167,6 +166,40 @@ public struct CodexClient: Sendable {
         func first(_ url: URL) -> Bool { lock.withLock { defer { done = true }; return !done } }
     }
 
+    // MARK: I modelli
+
+    /// I modelli che si possono scegliere, dal catalogo di Codex: solo le famiglie terra, luna e sol dalla versione 6 in
+    /// poi (i nuovi compaiono da soli). Dal più recente; a parità di versione nell'ordine del catalogo.
+    public static func models() async -> [CodexModel] {
+        guard let codex = executable(),
+              let output = try? await run(codex, arguments: ["debug", "models"], input: nil), output.status == 0 else { return [] }
+        return parseModels(Data(output.stdout.utf8))
+    }
+
+    static func parseModels(_ data: Data) -> [CodexModel] {
+        struct Level: Decodable { let effort: String }
+        struct Entry: Decodable {
+            let slug: String
+            let display_name: String?
+            let description: String?
+            let visibility: String?
+            let default_reasoning_level: String?
+            let supported_reasoning_levels: [Level]?
+            let priority: Int?
+        }
+        struct Catalog: Decodable { let models: [Entry] }
+        guard let catalog = try? JSONDecoder().decode(Catalog.self, from: data) else { return [] }
+        return catalog.models.compactMap { entry -> CodexModel? in
+            guard entry.visibility != "hide", let version = CodexModel.version(of: entry.slug),
+                  version.major >= CodexModel.minimumVersion else { return nil }
+            return CodexModel(slug: entry.slug, name: entry.display_name ?? entry.slug, summary: entry.description ?? "",
+                              efforts: entry.supported_reasoning_levels?.map(\.effort) ?? [],
+                              defaultEffort: entry.default_reasoning_level, major: version.major, minor: version.minor,
+                              priority: entry.priority ?? .max)
+        }
+        .sorted { a, b in (a.major, a.minor) != (b.major, b.minor) ? (a.major, a.minor) > (b.major, b.minor) : a.priority < b.priority }
+    }
+
     // MARK: Una richiesta
 
     func arguments() -> [String] {
@@ -174,7 +207,7 @@ public struct CodexClient: Sendable {
         for feature in Self.disabledFeatures { arguments += ["--disable", feature] }
         arguments += ["-c", #"web_search="disabled""#]
         if let model { arguments += ["-m", model] }
-        if let effort { arguments += ["-c", #"model_reasoning_effort=""# + effort.rawValue + #"""#] }
+        if let effort, !effort.isEmpty, effort.allSatisfy({ $0.isLetter }) { arguments += ["-c", "model_reasoning_effort=\"" + effort + "\""] }
         arguments.append("-")
         return arguments
     }
@@ -306,5 +339,41 @@ public struct CodexClient: Sendable {
         var strings: (String, String) {
             lock.withLock { (String(decoding: out, as: UTF8.self), String(decoding: err, as: UTF8.self)) }
         }
+    }
+}
+
+/// Un modello di GPT che si può scegliere per la chat.
+public struct CodexModel: Sendable, Equatable, Hashable, Identifiable {
+    /// Solo queste famiglie, dalla versione 6.
+    public static let families = ["terra", "luna", "sol"]
+    public static let minimumVersion = 6
+
+    public var id: String { slug }
+    /// Il nome per Codex («gpt-6-sol»).
+    public let slug: String
+    /// Il nome da mostrare («GPT-6-Sol»).
+    public let name: String
+    public let summary: String
+    /// I livelli di ragionamento che accetta («low», «medium», …).
+    public let efforts: [String]
+    public let defaultEffort: String?
+    let major: Int
+    let minor: Int
+    let priority: Int
+
+    /// Un nome di modello che si può usare (terra, luna o sol dalla versione 6).
+    public static func isAllowed(_ slug: String) -> Bool {
+        (version(of: slug)?.major ?? 0) >= minimumVersion
+    }
+
+    /// «gpt-6-sol» → (6, 0, «sol»); «gpt-5.6-terra» → (5, 6, «terra»); nil per le altre famiglie.
+    static func version(of slug: String) -> (major: Int, minor: Int, family: String)? {
+        let pattern = "^gpt-(\\d+)(?:\\.(\\d+))?-(" + families.joined(separator: "|") + ")$"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+              let match = regex.firstMatch(in: slug, range: NSRange(location: 0, length: (slug as NSString).length)) else { return nil }
+        let ns = slug as NSString
+        let major = Int(ns.substring(with: match.range(at: 1))) ?? 0
+        let minor = match.range(at: 2).location == NSNotFound ? 0 : Int(ns.substring(with: match.range(at: 2))) ?? 0
+        return (major, minor, ns.substring(with: match.range(at: 3)).lowercased())
     }
 }

@@ -136,6 +136,9 @@ c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo c
 - **Propone, tu decidi.** Le modifiche a un documento, o un documento nuovo, arrivano come schede con il testo già
   riconvertito. «Applica» ne fa una nuova versione del documento, o un documento nuovo del progetto; «Scarta» la
   lascia lì. GPT non modifica niente da solo.
+- **Il modello lo scegli tu,** fra le famiglie terra, luna e sol dalla versione 6 in poi (oggi GPT-6-Sol e GPT-6-Luna),
+  con il loro livello di ragionamento. Si sceglie in cima alla chat o in Impostazioni › Chat. L'elenco viene dal
+  catalogo di Codex, quindi i modelli nuovi compaiono da soli.
 - **Con il tuo abbonamento ChatGPT.** Ognuno collega il proprio account con un pulsante: l'app installa Codex (la riga
   di comando di OpenAI) se manca, e apre l'accesso di OpenAI nel browser. Nell'app non ci sono chiavi né password. Da
   Impostazioni › Chat si vede lo stato e si scollega l'account.
