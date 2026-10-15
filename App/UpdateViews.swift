@@ -78,7 +78,7 @@ struct UpdateSheet: View {
     @ViewBuilder private func notes(_ release: AppRelease) -> some View {
         if !release.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ScrollView {
-                Text(ChatText.markdown(release.notes))
+                Text(ChatText.markdown(Self.readableNotes(release.notes)))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
                     .padding(10)
@@ -87,6 +87,19 @@ struct UpdateSheet: View {
             .background(.background.opacity(0.6), in: .rect(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
         }
+    }
+
+    /// Le note della release sono Markdown di GitHub: i titoli («## Novità») diventano grassetto, i trattini puntini.
+    static func readableNotes(_ notes: String) -> String {
+        notes.components(separatedBy: .newlines).map { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("#") {
+                let title = trimmed.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)
+                return title.isEmpty ? "" : "**\(title)**"
+            }
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") { return "• " + trimmed.dropFirst(2) }
+            return line
+        }.joined(separator: "\n")
     }
 
     private func buttons<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

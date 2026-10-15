@@ -125,7 +125,7 @@ extension AppModel {
                 let app = try await UpdateInstaller.extractApp(from: dmg, bundleIdentifier: bundleID, version: release.version)
                 try UpdateInstaller.replace(target, with: app)
                 appLog.notice("Installo la versione \(release.version, privacy: .public) e riavvio")
-                NSApp.terminate(nil)
+                await quitForUpdate()
             } catch is CancellationError {
                 updates.phase = .available(release)
             } catch {
@@ -134,6 +134,23 @@ extension AppModel {
             }
             updates.task = nil
         }
+    }
+
+    /// Chiude l'app per lasciarla sostituire. Una finestra aperta sopra la principale (come quella dell'aggiornamento)
+    /// blocca la chiusura: prima si chiudono tutte; se qualcosa la trattiene ancora, si esce lo stesso (i dati sono già
+    /// salvati a ogni modifica).
+    private func quitForUpdate() async {
+        updates.isPresented = false
+        backupStep = nil
+        showsGuide = false
+        for window in NSApp.windows {
+            while let sheet = window.attachedSheet { window.endSheet(sheet) }
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        NSApp.terminate(nil)
+        try? await Task.sleep(for: .seconds(3))
+        appLog.notice("La chiusura normale non è avvenuta: esco per completare l'aggiornamento")
+        exit(0)
     }
 
     func cancelUpdate() {

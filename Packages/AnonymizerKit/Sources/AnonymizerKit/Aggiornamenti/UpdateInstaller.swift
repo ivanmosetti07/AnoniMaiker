@@ -127,18 +127,39 @@ public enum UpdateInstaller {
 
     // MARK: Sostituzione
 
-    /// Lo script che aspetta la chiusura dell'app, la sostituisce e la riapre.
+    /// Il registro dell'ultimo aggiornamento, per capire cosa è successo se qualcosa va storto.
+    public static var logFile: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs/AnoniMaiker/aggiornamento.log")
+    }
+
+    /// Lo script che aspetta la chiusura dell'app, la sostituisce e la riapre. Non tocca mai un'app ancora aperta e
+    /// copia la nuova accanto alla vecchia prima di scambiarle: se un passaggio non riesce, la vecchia resta com'era.
     static let script = #"""
     #!/bin/sh
-    # Aggiornamento di AnoniMaiker: $1 = processo da aspettare, $2 = nuova app, $3 = app da sostituire.
-    PID="$1"; NEW="$2"; TARGET="$3"; OLD="$TARGET.precedente"
+    # Aggiornamento di AnoniMaiker: $1 = processo da aspettare, $2 = nuova app, $3 = app da sostituire, $4 = registro.
+    PID="$1"; NEW="$2"; TARGET="$3"; LOG="$4"
+    STAGED="$TARGET.nuova"; OLD="$TARGET.precedente"
+    mkdir -p "$(dirname "$LOG")"
+    exec >>"$LOG" 2>&1
+    echo "$(date '+%F %T') aggiornamento di $TARGET"
     i=0
-    while kill -0 "$PID" 2>/dev/null && [ $i -lt 300 ]; do sleep 0.2; i=$((i+1)); done
-    rm -rf "$OLD"
-    if mv "$TARGET" "$OLD" && /usr/bin/ditto "$NEW" "$TARGET"; then
-      rm -rf "$OLD"
+    while kill -0 "$PID" 2>/dev/null && [ $i -lt 600 ]; do sleep 0.2; i=$((i+1)); done
+    if kill -0 "$PID" 2>/dev/null; then
+      echo "l'app è ancora aperta dopo 2 minuti: nessuna modifica"
+      exit 1
+    fi
+    rm -rf "$STAGED" "$OLD"
+    if ! /usr/bin/ditto "$NEW" "$STAGED"; then
+      echo "copia della nuova versione non riuscita: nessuna modifica"; rm -rf "$STAGED"; /usr/bin/open "$TARGET"; exit 1
+    fi
+    if mv "$TARGET" "$OLD"; then
+      if mv "$STAGED" "$TARGET"; then
+        rm -rf "$OLD"; echo "sostituita"
+      else
+        mv "$OLD" "$TARGET"; rm -rf "$STAGED"; echo "scambio non riuscito: rimessa la versione di prima"
+      fi
     else
-      rm -rf "$TARGET"; mv "$OLD" "$TARGET"
+      rm -rf "$STAGED"; echo "impossibile spostare l'app (permessi?): nessuna modifica"
     fi
     /usr/bin/xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null
     /usr/bin/open "$TARGET"
@@ -152,7 +173,7 @@ public enum UpdateInstaller {
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         let process = Process()
         process.executableURL = URL(filePath: "/bin/sh")
-        process.arguments = [scriptURL.path, String(pid), newApp.path, target.path]
+        process.arguments = [scriptURL.path, String(pid), newApp.path, target.path, logFile.path]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do {
