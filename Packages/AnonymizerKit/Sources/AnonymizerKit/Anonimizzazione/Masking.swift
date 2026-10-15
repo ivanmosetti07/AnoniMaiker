@@ -6,7 +6,8 @@ import Foundation
 // prende per civici senza una via davanti e le eccezioni («mai nascondere»). Dentro un indirizzo web lasciato in
 // chiaro l'email si nasconde lo stesso. Quello che il modello dà per un dato a forma fissa (codice fiscale, IBAN, carta,
 // targa, documento) deve averne almeno la forma: senza il contesto di una frase (le celle di una tabella) scambia per
-// codici fiscali gli orari e i codici brevi.
+// codici fiscali gli orari e i codici brevi. I luoghi che il modello prende per persone, aziende o vie restano in chiaro:
+// «Hotel», «Circo Massimo», «Castel Sant'Angelo», «Via Cavour» senza numero civico.
 
 enum Masking {
     static func masked(_ entities: [PIIEntity], in text: PIIText, labels: Set<String>) -> [PIIEntity] {
@@ -22,6 +23,7 @@ enum Masking {
                 continue
             }
             if entity.source == .model, !isPlausible(entity, value: value, in: text) { continue }
+            if isPlace(label: entity.label, value: value, after: text.slice(entity.end, min(text.count, entity.end + 16))) { continue }
             if entity.label == "IPADDR", isLocalAddress(value) { continue }
             if entity.label == "BUILDINGNUM" {
                 let previous = index > 0 ? entities[index - 1] : nil
@@ -66,6 +68,52 @@ enum Masking {
             let range = NSRange(location: 0, length: (before + value as NSString).length)
             return cadastral.firstMatch(in: before + value, range: range) != nil
         default: return true
+        }
+    }
+
+    // MARK: Luoghi
+
+    /// Parole comuni di luoghi e servizi: da sole (o solo fra loro) non sono un'azienda né una persona.
+    static let genericPlaceWords: Set<String> = [
+        "hotel", "albergo", "resort", "ostello", "residence", "spa", "ristorante", "trattoria", "osteria", "pizzeria", "bar",
+        "caffe", "pub", "enoteca", "cantina", "agriturismo", "terrazza", "rooftop", "giardino", "giardini", "sala", "salone",
+        "centro", "congressi", "congresso", "convegni", "auditorium", "teatro", "cinema", "museo", "musei", "galleria", "chiesa",
+        "basilica", "cattedrale", "duomo", "piazza", "piazzale", "parco", "spiaggia", "porto", "aeroporto", "stazione",
+        "terminal", "hall", "lobby", "reception", "ingresso", "uscita", "sede", "ufficio", "uffici", "location", "navetta",
+        "pullman", "bus", "transfer", "treno", "volo", "voli", "gala", "cena", "pranzo", "colazione", "aperitivo",
+    ]
+
+    /// Parole che aprono il nome di un luogo e non di una persona («Circo Massimo», «Castel Sant'Angelo», «Borgo Pio»).
+    /// Restano fuori quelle che sono anche cognomi frequenti (Fontana, Villa, Torre, Porta, Ponte, Monte, Colle, Sala…).
+    static let placePrefixes: Set<String> = [
+        "circo", "castel", "borgo", "piazza", "piazzale", "palazzo", "basilica", "chiesa", "cattedrale", "duomo", "museo",
+        "musei", "teatro", "parco", "giardino", "giardini", "lago", "foro", "fori", "terme", "via", "viale", "vicolo", "largo",
+        "lungotevere", "lungarno", "lungomare", "stazione", "aeroporto", "cappella", "santuario", "abbazia", "hotel", "albergo",
+        "ristorante", "trattoria", "osteria", "pizzeria",
+    ]
+
+    static func placeWords(_ value: String) -> [String] {
+        value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "it_IT"))
+            .split(whereSeparator: { !$0.isLetter }).map(String.init)
+    }
+
+    /// Un numero civico dopo una via: «Via Roma 12», «Via Roma, 12», «Via Roma n. 12».
+    private static let civicNumber = #"^[ ,]{0,3}(?:n\.?\s?|nr\.?\s?|civico\s)?\d"#
+
+    /// Un luogo che il modello ha preso per persona, azienda o indirizzo: resta in chiaro. `after` è il testo subito dopo.
+    static func isPlace(label: String, value: String, after: String = "") -> Bool {
+        let words = placeWords(value)
+        guard let first = words.first else { return false }
+        switch label {
+        case "ORG":
+            return words.count <= 3 && words.allSatisfy(genericPlaceWords.contains)
+        case "FULLNAME":
+            return words.allSatisfy(genericPlaceWords.contains) || placePrefixes.contains(first)
+        case "STREET":
+            // Senza numero civico una via è un luogo («Via Cavour», «Lungotevere»); con il numero è un indirizzo.
+            return !value.contains(where: \.isNumber) && after.range(of: civicNumber, options: .regularExpression) == nil
+        default:
+            return false
         }
     }
 
@@ -137,7 +185,8 @@ enum Masking {
                              exceptions: Set<String>) -> [(start: Int, end: Int, label: String, placeholder: String)] {
         let identifying = labels.intersection(PIICategory.identifying)
         let known = entries.filter { entry in
-            guard identifying.contains(entry.label), entry.value.count >= 4, !isException(entry.value, exceptions) else { return false }
+            guard identifying.contains(entry.label), entry.value.count >= 4, !isException(entry.value, exceptions),
+                  !isPlace(label: entry.label, value: entry.value) else { return false }
             return entry.label != "FULLNAME" || entry.value.split(separator: " ").count >= 2
         }
         guard !known.isEmpty else { return [] }

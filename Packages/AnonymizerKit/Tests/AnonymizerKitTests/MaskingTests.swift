@@ -85,4 +85,33 @@ import Testing
                                          exceptions: Masking.normalizedExceptions(["Rossi Moto"]))
         #expect(excepted.text.hasPrefix("Rossi Moto di Roma"))
     }
+
+    /// Luoghi presi per persone, aziende o vie (un programma di eventi): restano in chiaro.
+    @Test func placesAreNotPeopleOrCompanies() {
+        let text = PIIText("Hotel → Terrazza; Hotel Palazzo Aureliano · Sala Traiano; Circo Massimo; Castel Sant'Angelo · Lungotevere; "
+            + "Centro congressi Via Cavour; Mario Rossi abita in Via Roma 12; Villa Mario e Anna Fontana; Borgo Pio")
+        func entity(_ label: String, _ value: String, occurrence: Int = 0) -> PIIEntity {
+            var ranges: [Range<String.Index>] = []
+            var from = text.string.startIndex
+            while let range = text.string.range(of: value, range: from..<text.string.endIndex) { ranges.append(range); from = range.upperBound }
+            let range = ranges[occurrence]
+            let start = text.string.unicodeScalars.distance(from: text.string.unicodeScalars.startIndex, to: range.lowerBound)
+            return PIIEntity(label: label, start: start, end: start + value.unicodeScalars.count, score: 0.9, validated: false, source: .model)
+        }
+        let found = [entity("ORG", "Hotel"), entity("ORG", "Hotel Palazzo Aureliano"), entity("FULLNAME", "Circo Massimo"),
+                     entity("FULLNAME", "Castel Sant"), entity("STREET", "Lungotevere"), entity("STREET", "Via Cavour"),
+                     entity("FULLNAME", "Mario Rossi"), entity("STREET", "Via Roma"), entity("BUILDINGNUM", "12"),
+                     entity("FULLNAME", "Villa Mario"), entity("FULLNAME", "Anna Fontana"), entity("FULLNAME", "Borgo Pio")]
+        let hidden = Masking.masked(found, in: text, labels: PIICategory.defaultHidden).map { text.slice($0.start, $0.end) }
+        #expect(hidden == ["Hotel Palazzo Aureliano", "Mario Rossi", "Via Roma", "12", "Villa Mario", "Anna Fontana"])
+
+        // Anche le voci già finite nel dizionario («Hotel» come azienda) non si cercano più nei testi.
+        var vault = Vault()
+        vault.placeholder(label: "ORG", value: "Hotel")
+        vault.placeholder(label: "FULLNAME", value: "Circo Massimo")
+        vault.placeholder(label: "ORG", value: "Edilnord S.r.l.")
+        let matches = Masking.knownMatches(in: PIIText("Hotel e Circo Massimo con Edilnord"), entries: vault.entries,
+                                           labels: PIICategory.defaultHidden, exceptions: [])
+        #expect(matches.map(\.placeholder) == ["[ORG_2]"])
+    }
 }

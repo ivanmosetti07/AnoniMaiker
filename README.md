@@ -104,6 +104,11 @@ c'è Codex, la riga di comando di OpenAI: se manca, l'app lo installa al primo c
   - ogni segnaposto corrisponde a una grafia esatta: un file riconvertito torna identico, maiuscole comprese.
 - **Meno falsi positivi:** quello che il modello indica come codice fiscale, IBAN, carta, targa o documento deve
   averne almeno la forma. Un dato catastale vale solo dopo «foglio», «particella», «sub.» e simili.
+- **I luoghi restano luoghi:**
+  - «Hotel», «Terrazza» o «Ristorante» da soli non sono aziende;
+  - «Circo Massimo», «Castel Sant'Angelo» o «Borgo Pio» non sono persone;
+  - una via senza numero civico («Via Cavour», «Lungotevere») è un luogo e resta in chiaro, mentre «Via Cavour 12» è un
+    indirizzo e si nasconde.
 - **Nel CRM** i documenti di tutti questi formati si archiviano, si anonimizzano e ricevono le risposte dell'AI,
   anche in un formato diverso, come il testo incollato.
 - **Formati non gestiti:** i file .doc e .xls del vecchio Office vanno prima salvati come .docx e .xlsx.
