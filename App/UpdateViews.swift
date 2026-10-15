@@ -42,9 +42,8 @@ struct UpdateSheet: View {
             header("Scarico AnoniMaiker \(release.version)…", detail: sizeText(release), symbol: "arrow.down.circle", color: .accentColor)
             ProgressView(value: progress)
             buttons { Button("Annulla") { model.cancelUpdate() }.keyboardShortcut(.cancelAction) }
-        case .installing(let release):
-            header("Installo AnoniMaiker \(release.version)…", detail: "Controllo la firma, poi l'app si chiude e si riapre aggiornata.",
-                   symbol: "gearshape.2", color: .accentColor)
+        case .installing(let release, let step):
+            header("Installo AnoniMaiker \(release.version)…", detail: step, symbol: "gearshape.2", color: .accentColor)
             ProgressView()
         case .failed(let message, let release):
             header("Aggiornamento non riuscito", detail: message, symbol: "exclamationmark.triangle.fill", color: .orange)

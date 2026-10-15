@@ -136,8 +136,9 @@ public enum UpdateInstaller {
     /// copia la nuova accanto alla vecchia prima di scambiarle: se un passaggio non riesce, la vecchia resta com'era.
     static let script = #"""
     #!/bin/sh
-    # Aggiornamento di AnoniMaiker: $1 = processo da aspettare, $2 = nuova app, $3 = app da sostituire, $4 = registro.
-    PID="$1"; NEW="$2"; TARGET="$3"; LOG="$4"
+    # Aggiornamento di AnoniMaiker: $1 = processo da aspettare, $2 = nuova app, $3 = app da sostituire, $4 = registro,
+    # $5 = cartella dati di prova (vuota di solito).
+    PID="$1"; NEW="$2"; TARGET="$3"; LOG="$4"; DATI="$5"
     STAGED="$TARGET.nuova"; OLD="$TARGET.precedente"
     mkdir -p "$(dirname "$LOG")"
     exec >>"$LOG" 2>&1
@@ -150,7 +151,7 @@ public enum UpdateInstaller {
     fi
     rm -rf "$STAGED" "$OLD"
     if ! /usr/bin/ditto "$NEW" "$STAGED"; then
-      echo "copia della nuova versione non riuscita: nessuna modifica"; rm -rf "$STAGED"; /usr/bin/open "$TARGET"; exit 1
+      echo "copia della nuova versione non riuscita: nessuna modifica"; rm -rf "$STAGED"; /usr/bin/open -n "$TARGET"; exit 1
     fi
     if mv "$TARGET" "$OLD"; then
       if mv "$STAGED" "$TARGET"; then
@@ -162,7 +163,20 @@ public enum UpdateInstaller {
       rm -rf "$STAGED"; echo "impossibile spostare l'app (permessi?): nessuna modifica"
     fi
     /usr/bin/xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null
-    /usr/bin/open "$TARGET"
+    # Una nuova istanza: senza -n, se è aperta un'altra AnoniMaiker (un'altra copia) macOS porterebbe avanti quella.
+    if [ -n "$DATI" ]; then
+      /usr/bin/open -n --env ANONIMAIKER_DATI="$DATI" "$TARGET"
+    else
+      /usr/bin/open -n "$TARGET"
+    fi
+    STATUS=$?
+    if [ $STATUS -ne 0 ]; then
+      echo "riapertura con open non riuscita ($STATUS): avvio diretto"
+      APP_NAME=$(/usr/bin/defaults read "$TARGET/Contents/Info" CFBundleExecutable 2>/dev/null || echo AnoniMaiker)
+      nohup "$TARGET/Contents/MacOS/$APP_NAME" >/dev/null 2>&1 &
+    else
+      echo "riaperta"
+    fi
     rm -rf "$(dirname "$NEW")"
     """#
 
@@ -173,7 +187,8 @@ public enum UpdateInstaller {
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         let process = Process()
         process.executableURL = URL(filePath: "/bin/sh")
-        process.arguments = [scriptURL.path, String(pid), newApp.path, target.path, logFile.path]
+        let testData = ProcessInfo.processInfo.environment["ANONIMAIKER_DATI"] ?? ""
+        process.arguments = [scriptURL.path, String(pid), newApp.path, target.path, logFile.path, testData]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do {

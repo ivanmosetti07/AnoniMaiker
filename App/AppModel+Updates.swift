@@ -16,7 +16,8 @@ final class UpdateState {
         case upToDate
         case available(AppRelease)
         case downloading(AppRelease, Double)
-        case installing(AppRelease)
+        /// Il passaggio in corso: «Controllo la firma…», «Chiudo e riapro…».
+        case installing(AppRelease, String)
         case failed(String, AppRelease?)
     }
 
@@ -53,8 +54,16 @@ final class UpdateState {
 }
 
 extension AppModel {
-    /// Il controllo automatico: subito se l'ultimo ha più di un giorno, poi ogni giorno.
+    /// Il controllo automatico: subito se l'ultimo ha più di un giorno, poi ogni giorno. Per le prove,
+    /// `ANONIMAIKER_AGGIORNA_SUBITO=1` nell'ambiente controlla e installa subito, come premendo «Installa e riavvia».
     func startUpdateChecks() {
+        if ProcessInfo.processInfo.environment["ANONIMAIKER_AGGIORNA_SUBITO"] == "1" {
+            Task {
+                await checkForUpdates(userInitiated: true)
+                if case .available(let release) = updates.phase { install(release) }
+            }
+            return
+        }
         Task {
             while !Task.isCancelled {
                 if updates.automatic, Date.now.timeIntervalSince(updates.lastCheck ?? .distantPast) > 24 * 3600 {
@@ -121,10 +130,11 @@ extension AppModel {
                         if case .downloading = updates.phase { updates.phase = .downloading(release, value) }
                     }
                 }
-                updates.phase = .installing(release)
+                updates.phase = .installing(release, "Controllo la firma e preparo la nuova versione…")
                 let app = try await UpdateInstaller.extractApp(from: dmg, bundleIdentifier: bundleID, version: release.version)
                 try UpdateInstaller.replace(target, with: app)
                 appLog.notice("Installo la versione \(release.version, privacy: .public) e riavvio")
+                updates.phase = .installing(release, "Chiudo AnoniMaiker: si riapre da sola aggiornata tra qualche secondo.")
                 await quitForUpdate()
             } catch is CancellationError {
                 updates.phase = .available(release)
