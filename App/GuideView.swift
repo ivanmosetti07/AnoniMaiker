@@ -78,14 +78,20 @@ struct GuideView: View {
         VStack(spacing: 18) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
-                .frame(width: 96, height: 96)
-            Text("Benvenuto in AnoniMaiker").font(.largeTitle).fontWeight(.semibold)
+                .frame(width: 88, height: 88)
+            Image("Logotipo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 30)
+                .accessibilityLabel("AnoniMaiker")
             Text("Usa l'intelligenza artificiale sui documenti dei tuoi clienti senza darle i dati veri.")
                 .font(.title3)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             flow
                 .padding(.top, 10)
+            MaikerHubSignature()
+                .padding(.top, 14)
         }
     }
 
@@ -269,6 +275,24 @@ extension AppModel {
             section = .anonymize
         case .chat:
             section = .chat
+        }
+    }
+}
+
+/// «Un prodotto MaikerHub», con il logo del marchio.
+struct MaikerHubSignature: View {
+    var height: CGFloat = 9
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("Un prodotto")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Image("MaikerHub")
+                .resizable()
+                .scaledToFit()
+                .frame(height: height)
+                .accessibilityLabel("MaikerHub")
         }
     }
 }

@@ -1,8 +1,26 @@
-# AnoniMaiker
+<p align="center">
+  <img src="Brand/anonimaiker-simbolo.svg" width="120" alt="">
+</p>
 
-**Usa l'intelligenza artificiale sui documenti dei tuoi clienti senza darle i dati veri.**
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Brand/anonimaiker-logotipo-negativo.svg">
+    <img src="Brand/anonimaiker-logotipo.svg" height="44" alt="AnoniMaiker">
+  </picture>
+</h1>
 
-AnoniMaiker è un'app gratuita e open source per macOS. Anonimizza testi e file direttamente sul Mac: nomi, aziende,
+<p align="center">
+  <b>Usa l'intelligenza artificiale sui documenti dei tuoi clienti senza darle i dati veri.</b><br>
+  Un prodotto <a href="Brand/README.md"><img src="Brand/maikerhub-logotipo.svg" height="11" alt="MaikerHub"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ivanmosetti07/AnoniMaiker/releases/latest"><b>Scarica per macOS</b></a> ·
+  <a href="#scaricare-e-installare">Installazione</a> ·
+  <a href="#compilare-dal-codice">Compilare dal codice</a>
+</p>
+
+AnoniMaiker è un'app gratuita e open source per macOS, un prodotto MaikerHub. Anonimizza testi e file direttamente sul Mac: nomi, aziende,
 codici fiscali, IBAN, email e telefoni diventano segnaposto come `[FULLNAME_1]`, `[IBAN_1]` o `[ORG_1]`. Il testo
 anonimizzato si può dare a ChatGPT, Claude o a qualsiasi altra AI, e la risposta torna con i dati veri. Ha un CRM per i
 clienti e una chat con GPT che usa il tuo abbonamento ChatGPT. I dati personali non lasciano mai il Mac.
@@ -187,6 +205,7 @@ anonimizzazione», e la licenza MIT sta in `App/Risorse/Licenze.md`.
 | `App/GuideView.swift` | La guida del primo avvio |
 | `App/AppIcon.icon` | L'icona (Icon Composer) |
 | `App/Risorse/Licenze.md` | Licenze di terze parti, incluse nell'app |
+| `Brand/` | Logotipo, simbolo, colori e regole del marchio |
 
 ## Compilare dal codice
 

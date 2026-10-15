@@ -24,6 +24,17 @@ struct ContentView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 210, ideal: 230)
+            .safeAreaInset(edge: .top) {
+                Image("Logotipo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 4)
+                    .padding(.bottom, 6)
+                    .accessibilityLabel("AnoniMaiker")
+            }
             .safeAreaInset(edge: .bottom) { StatusFooter() }
         } detail: {
             VStack(spacing: 0) {

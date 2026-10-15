@@ -1,8 +1,8 @@
 {
   "fill": {
     "linear-gradient": [
-      "srgb:0.25000,0.30000,0.82000,1.00000",
-      "srgb:0.08000,0.56000,0.72000,1.00000"
+      "srgb:0.20392,0.20392,0.22745,1.00000",
+      "srgb:0.07059,0.07059,0.07843,1.00000"
     ],
     "orientation": {
       "start": { "x": 0.5, "y": 0 },
@@ -12,16 +12,16 @@
   "groups": [
     {
       "layers": [
-        { "glass": false, "image-name": "segnaposto.svg", "name": "segnaposto" }
+        { "glass": false, "image-name": "lettera.svg", "name": "lettera" }
       ],
-      "shadow": { "kind": "neutral", "opacity": 0.35 },
+      "shadow": { "kind": "neutral", "opacity": 0.3 },
       "translucency": { "enabled": false, "value": 0.3 }
     },
     {
       "layers": [
-        { "glass": false, "image-name": "foglio.svg", "name": "foglio" }
+        { "glass": false, "image-name": "parentesi.svg", "name": "parentesi" }
       ],
-      "shadow": { "kind": "neutral", "opacity": 0.4 },
+      "shadow": { "kind": "neutral", "opacity": 0.3 },
       "translucency": { "enabled": false, "value": 0.3 }
     }
   ],
