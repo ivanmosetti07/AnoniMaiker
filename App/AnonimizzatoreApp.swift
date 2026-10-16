@@ -12,7 +12,7 @@ struct AnonimizzatoreApp: App {
             ContentView()
                 .environment(model)
                 .task { await model.start() }
-                .frame(minWidth: 880, minHeight: 540)
+                .frame(minHeight: 540)
         }
         .defaultSize(width: 1200, height: 760)
         .commands {

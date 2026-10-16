@@ -1,29 +1,45 @@
 import AnonymizerKit
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage("chat.larghezza") private var chatWidth = 380.0
 
     var body: some View {
         @Bindable var model = model
-        NavigationSplitView {
-            Sidebar()
-                .navigationSplitViewColumnWidth(min: 220, ideal: 240)
-        } detail: {
-            VStack(spacing: 0) {
-                DataBanner()
-                if model.hasProject {
-                    detail
-                } else {
-                    ProjectsView()
+        // La chat è una colonna fatta a mano accanto a tutta la vista divisa, non un `.inspector`: accanto ad alcune
+        // schermate la colonna di AppKit entrava in un ciclo di layout che chiudeva l'app. Sta fuori dalla vista divisa
+        // perché un documento aperto (navigazione) prende tutta la colonna del contenuto. Le larghezze sono date a
+        // mano: la chat ha la sua e il resto prende quello che avanza.
+        GeometryReader { proxy in
+            let chat = chatSpace
+            HStack(spacing: 0) {
+                NavigationSplitView {
+                    Sidebar()
+                        .navigationSplitViewColumnWidth(min: 220, ideal: 240)
+                } detail: {
+                    VStack(spacing: 0) {
+                        DataBanner()
+                        if model.hasProject {
+                            detail
+                        } else {
+                            ProjectsView()
+                        }
+                    }
+                    .sheet(isPresented: Bindable(model.updates).isPresented) { UpdateSheet() }
+                }
+                .frame(width: max(proxy.size.width - chat, 0))
+                if chat > 0 {
+                    ChatColumn(width: $chatWidth)
+                        .frame(width: chat)
+                        .transition(.move(edge: .trailing))
                 }
             }
-            .sheet(isPresented: Bindable(model.updates).isPresented) { UpdateSheet() }
         }
-        .inspector(isPresented: $model.showsChat) {
-            ChatPanel()
-                .inspectorColumnWidth(min: 320, ideal: 400, max: 640)
-        }
+        // Con la chat aperta la finestra si allarga: la vista divisa non scende mai sotto il suo minimo.
+        .frame(minWidth: 880 + chatSpace)
+        .animation(.easeOut(duration: 0.2), value: model.showsChat)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(model.showsChat ? "Nascondi la chat" : "Chat con GPT", systemImage: "bubble.left.and.text.bubble.right") {
@@ -47,6 +63,9 @@ struct ContentView: View {
             }
         }
     }
+
+    /// Lo spazio della chat a destra (0 se è chiusa).
+    private var chatSpace: Double { model.showsChat && model.hasProject ? ChatColumn.clamped(chatWidth) + 1 : 0 }
 
     @ViewBuilder private var detail: some View {
         @Bindable var model = model
@@ -269,5 +288,36 @@ struct StatusFooter: View {
         .buttonStyle(.plain)
         .disabled(!model.isVaultReady)
         .help("Crea una copia di sicurezza protetta da password")
+    }
+}
+
+/// La colonna della chat a destra, larga quanto si vuole trascinando il bordo.
+private struct ChatColumn: View {
+    @Binding var width: Double
+    @State private var dragStart: Double?
+
+    static func clamped(_ width: Double) -> Double { min(max(width, 300), 640) }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Divider()
+                .overlay {
+                    Color.clear
+                        .frame(width: 8)
+                        .contentShape(Rectangle())
+                        .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+                        .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                            .onChanged { value in
+                                let start = dragStart ?? width
+                                dragStart = start
+                                width = Self.clamped(start - value.translation.width)
+                            }
+                            .onEnded { _ in dragStart = nil })
+                }
+            ChatPanel()
+                .frame(width: Self.clamped(width))
+                .frame(maxHeight: .infinity)
+                .background(.background)
+        }
     }
 }
