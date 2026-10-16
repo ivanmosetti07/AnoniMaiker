@@ -27,6 +27,24 @@ import Testing
         #expect(CodexClient.classify("", status: 0) == .emptyReply)
     }
 
+    /// Senza rete Codex aspetta all'infinito: appena lo dice, si ferma e la chat spiega perché.
+    @Test func codexIsStoppedWhenOffline() async throws {
+        let script = FileManager.default.temporaryDirectory.appending(path: "codex-offline-\(UUID().uuidString).sh")
+        defer { try? FileManager.default.removeItem(at: script) }
+        try """
+        #!/bin/sh
+        echo '{"type":"error","message":"Reconnecting... 5/5 (stream disconnected before completion)"}'
+        echo '{"type":"error","message":"Reconnecting... waiting for network (Connection failed: error sending request)"}'
+        sleep 30
+        """.write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let start = Date.now
+        let output = try await CodexClient.run(script, arguments: [], input: nil, stopOn: CodexClient.offlineSignal)
+        #expect(output.stopped)
+        #expect(Date.now.timeIntervalSince(start) < 10)
+        #expect(CodexClient.CodexError.offline.errorDescription?.contains("Nessuna connessione") == true)
+    }
+
     @Test func loginPageIsFoundInCodexOutput() {
         let output = "Starting local login server on http://localhost:1455.\nIf your browser did not open, navigate to this URL to authenticate:\n\nhttps://auth.openai.com/oauth/authorize?response_type=code&client_id=abc&state=xyz\n"
         // Il server locale (http) non conta: serve la pagina di accesso di OpenAI.

@@ -12,7 +12,9 @@ struct WorkspaceView: View {
     var body: some View {
         VStack(spacing: 0) {
             banner
-            HSplitView {
+            // Due metà uguali in un HStack: un HSplitView accanto al pannello della chat entra in un ciclo di layout che
+            // chiude l'app.
+            HStack(spacing: 0) {
                 pane(title: isAnonymize ? "Originale" : "Con i segnaposto", detail: inputDetail) {
                     if space.isFile {
                         filePane(space.inputPreview, highlightPlaceholders: !isAnonymize, compared: nil, highlights: [])
@@ -25,6 +27,7 @@ struct WorkspaceView: View {
                             .overlay(alignment: .topLeading) { if space.input.isEmpty { emptyInput } }
                     }
                 }
+                Divider()
                 pane(title: isAnonymize ? "Anonimizzato" : "Riconvertito", detail: outputDetail) {
                     Group {
                         if space.isFile {
@@ -95,7 +98,7 @@ struct WorkspaceView: View {
             Divider()
             content()
         }
-        .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: 200, maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyInput: some View {

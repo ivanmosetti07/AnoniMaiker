@@ -32,6 +32,7 @@ public struct CodexClient: Sendable {
         case notInstalled
         case notLoggedIn
         case failed(String)
+        case offline
         case emptyReply
 
         public var errorDescription: String? {
@@ -42,6 +43,8 @@ public struct CodexClient: Sendable {
                 "Il tuo account ChatGPT non è collegato: premi «Collega il tuo account ChatGPT» (Impostazioni › Chat)."
             case .failed(let message):
                 "GPT non ha risposto: \(message)"
+            case .offline:
+                "Nessuna connessione a internet: GPT non è raggiungibile. Controlla la rete e premi «Riprova»."
             case .emptyReply:
                 "GPT non ha restituito una risposta."
             }
@@ -215,7 +218,9 @@ public struct CodexClient: Sendable {
     /// Manda il testo (già anonimizzato) e restituisce la risposta di GPT così com'è.
     public func send(_ transcript: String) async throws -> String {
         guard let codex = Self.executable() else { throw CodexError.notInstalled }
-        let output = try await Self.run(codex, arguments: arguments(), input: Data(transcript.utf8))
+        // Senza rete Codex riprova all'infinito («waiting for network»): lo si ferma e si dice perché.
+        let output = try await Self.run(codex, arguments: arguments(), input: Data(transcript.utf8), stopOn: Self.offlineSignal)
+        if output.stopped { throw CodexError.offline }
         let events = Self.parse(output.stdout)
         if let reply = events.reply { return reply }
         let message = events.error ?? output.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -264,10 +269,16 @@ public struct CodexClient: Sendable {
         var status: Int32
         var stdout: String
         var stderr: String
+        /// Fermato perché nell'uscita è comparso `stopOn`.
+        var stopped = false
     }
 
-    /// Avvia Codex in una cartella vuota e aspetta che finisca; se il task viene annullato, lo ferma.
-    static func run(_ executable: URL, arguments: [String], input: Data?,
+    /// Cosa scrive Codex quando non c'è rete e aspetta che torni.
+    static let offlineSignal = "waiting for network"
+
+    /// Avvia Codex in una cartella vuota e aspetta che finisca; se il task viene annullato, lo ferma. Se nell'uscita
+    /// compare `stopOn`, lo ferma e lo dice in `Output.stopped`.
+    static func run(_ executable: URL, arguments: [String], input: Data?, stopOn: String? = nil,
                     onOutput: (@Sendable (String) -> Void)? = nil) async throws -> Output {
         let directory = FileManager.default.temporaryDirectory.appending(path: "chat-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -291,6 +302,7 @@ public struct CodexClient: Sendable {
             let data = handle.availableData
             collected.append(data, error: false)
             if !data.isEmpty { onOutput?(String(decoding: data, as: UTF8.self)) }
+            if let stopOn, collected.stdoutContains(stopOn), collected.markStopped(), process.isRunning { process.terminate() }
         }
         stderr.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
@@ -322,7 +334,7 @@ public struct CodexClient: Sendable {
         collected.append(stderr.fileHandleForReading.readDataToEndOfFile(), error: true)
         try Task.checkCancellation()
         let (out, err) = collected.strings
-        return Output(status: status, stdout: out, stderr: err)
+        return Output(status: status, stdout: out, stderr: err, stopped: collected.stopped)
     }
 
     /// Le uscite del processo, raccolte da più thread.
@@ -330,11 +342,26 @@ public struct CodexClient: Sendable {
         private let lock = NSLock()
         private var out = Data()
         private var err = Data()
+        private var isStopped = false
 
         func append(_ data: Data, error: Bool) {
             guard !data.isEmpty else { return }
             lock.withLock { if error { err.append(data) } else { out.append(data) } }
         }
+
+        func stdoutContains(_ text: String) -> Bool {
+            lock.withLock { out.range(of: Data(text.utf8)) != nil }
+        }
+
+        /// Vero solo la prima volta.
+        func markStopped() -> Bool {
+            lock.withLock {
+                defer { isStopped = true }
+                return !isStopped
+            }
+        }
+
+        var stopped: Bool { lock.withLock { isStopped } }
 
         var strings: (String, String) {
             lock.withLock { (String(decoding: out, as: UTF8.self), String(decoding: err, as: UTF8.self)) }

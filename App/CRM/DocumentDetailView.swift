@@ -31,9 +31,12 @@ struct DocumentDetailView: View {
 
     private func content(_ document: CRMDocument) -> some View {
         let version = document.versions.first { $0.id == selection }
-        return HSplitView {
+        // Un HStack e non un HSplitView: accanto al pannello della chat la divisione di AppKit entra in un ciclo di layout
+        // che chiude l'app.
+        return HStack(spacing: 0) {
             versionList(document)
-                .frame(minWidth: 220, idealWidth: 240, maxWidth: 320)
+                .frame(width: 240)
+            Divider()
             VStack(spacing: 0) {
                 if model.busyDocuments.contains(document.id) {
                     HStack(spacing: 8) {
@@ -63,7 +66,7 @@ struct DocumentDetailView: View {
                 Divider()
                 if let version { actionBar(document, version) }
             }
-            .frame(minWidth: 420)
+            .frame(minWidth: 280, maxWidth: .infinity)
         }
         .navigationTitle(document.title)
         .navigationSubtitle(model.crm.company(document.companyID)?.name ?? "")
