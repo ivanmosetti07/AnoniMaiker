@@ -33,6 +33,30 @@ jobs:
         run: npm test
       - name: Installatore
         run: npm run dist
+      - name: Prova dell'app installata (motore, cifratura, anonimizzazione)
+        shell: pwsh
+        env:
+          ANONIMAIKER_DATI: ${{ runner.temp }}\dati-prova
+          ANONIMAIKER_PROVA: ${{ github.workspace }}\windows\scripts\prova-app.json
+        run: |
+          $app = Start-Process -FilePath "dist\win-unpacked\AnoniMaiker.exe" -ArgumentList "--prova" -PassThru
+          if (-not $app.WaitForExit(240000)) { $app.Kill(); throw "L'app non ha finito la prova in 4 minuti" }
+          if (-not (Test-Path prova-risultato.json)) { throw "Nessun risultato dalla prova" }
+          $r = Get-Content prova-risultato.json -Raw
+          Write-Output $r
+          $j = $r | ConvertFrom-Json
+          if ($j.engine.kind -ne "ready") { throw "Motore non pronto" }
+          if ($j.vault.kind -ne "ready") { throw "Dati non aperti" }
+          if ($j.anonimizzato -notmatch "\[FULLNAME_1\]" -or $j.anonimizzato -match "Mario Rossi") { throw "Anonimizzazione sbagliata" }
+          if ($j.riconvertito -notmatch "Mario Rossi") { throw "Riconversione sbagliata" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Prova-app
+          path: |
+            windows/prova-anonimizza.png
+            windows/prova-risultato.json
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: AnoniMaiker-Windows

@@ -70,13 +70,14 @@ function createWindow() {
     void window.loadFile(join(__dirname, "../renderer/index.html"));
   }
   window.on("closed", () => (window = null));
-  if (!app.isPackaged && process.env.ANONIMAIKER_PROVA) void runScript(process.env.ANONIMAIKER_PROVA);
+  // Nell'app installata solo con «--prova» esplicito (la prova automatica dell'installatore su GitHub Actions).
+  if (process.env.ANONIMAIKER_PROVA && (!app.isPackaged || process.argv.includes("--prova"))) void runScript(process.env.ANONIMAIKER_PROVA);
 }
 
-/// Solo nello sviluppo: un copione di passi (JSON: `[{ "js": "...", "attesa": 500, "schermata": "file.png" }]`) da eseguire
+/// Per le prove: un copione di passi (JSON: `[{ "js": "...", "attesa": 500, "schermata": "file.png" }]`) da eseguire
 /// nella finestra, con le schermate. Serve a provare l'interfaccia senza toccare il mouse; alla fine l'app si chiude.
 async function runScript(path: string) {
-  const steps = JSON.parse(readFileSync(path, "utf8")) as { js?: string; attesa?: number; schermata?: string }[];
+  const steps = JSON.parse(readFileSync(path, "utf8")) as { js?: string; attesa?: number; schermata?: string; risultato?: string }[];
   await new Promise<void>((resolve) => window?.webContents.once("did-finish-load", () => resolve()));
   for (const step of steps) {
     if (!window) return;
@@ -84,8 +85,10 @@ async function runScript(path: string) {
       try {
         const result = await window.webContents.executeJavaScript(step.js, true);
         if (result !== undefined) console.log("[prova]", JSON.stringify(result));
+        if (step.risultato) writeFileSync(step.risultato, JSON.stringify(result ?? null));
       } catch (error) {
         console.log("[prova] errore:", String(error));
+        if (step.risultato) writeFileSync(step.risultato, JSON.stringify({ errore: String(error) }));
       }
     }
     await new Promise((resolve) => setTimeout(resolve, step.attesa ?? 300));

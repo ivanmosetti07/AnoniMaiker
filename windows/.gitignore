@@ -3,3 +3,6 @@ out/
 dist/
 # Motore ONNX (centinaia di MB): si prepara con npm run motore
 /engine/
+# Risultati della prova automatica dell'app
+/prova-*.png
+/prova-risultato.json

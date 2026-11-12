@@ -1,0 +1,4 @@
+[
+  { "js": "(async()=>{const m=window.anonimaiker.model; for(let i=0;i<40 && (m.vaultState.kind==='opening');i++) await new Promise(r=>setTimeout(r,500)); m.showsGuide=false; await m.createProject('Prova Windows'); return m.vaultState})()", "attesa": 1500 },
+  { "js": "(async()=>{const m=window.anonimaiker.model; for(let i=0;i<120 && m.engineState.kind==='loading';i++) await new Promise(r=>setTimeout(r,500)); const s=m.anonymizeSpace; s.input='Il sig. Mario Rossi, CF RSSMRA85H12F205Y, IBAN IT60X0542811101000000123456, abita in via Garibaldi 24 a Milano.'; await m.run(s); const r=m.revealSpace; r.input=s.output; await m.run(r); return {engine:m.engineState, vault:m.vaultState, anonimizzato:s.output, riconvertito:r.output, versione:m.appVersion}})()", "attesa": 1500, "schermata": "prova-anonimizza.png", "risultato": "prova-risultato.json" }
+]
