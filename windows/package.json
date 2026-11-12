@@ -4,7 +4,7 @@
   "version": "0.16.0",
   "description": "Usa l'intelligenza artificiale sui documenti dei tuoi clienti senza darle i dati veri.",
   "author": "Ivan Mosetti",
-  "license": "SEE LICENSE IN ../LICENSE",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {

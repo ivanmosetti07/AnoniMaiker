@@ -1,6 +1,7 @@
 # Licenze di terze parti
 
-AnoniMaiker · © 2026 Ivan Mosetti
+AnoniMaiker · © 2026 Ivan Mosetti · software libero con licenza GNU GPL v3 o successiva
+(https://www.gnu.org/licenses/gpl-3.0.html). Le parti di terzi qui sotto mantengono le loro licenze, compatibili con la GPL.
 
 ## Motore di anonimizzazione
 
@@ -37,3 +38,10 @@ SOFTWARE.
 Il modello del motore deriva da mmBERT-base (jhu-clsp/mmBERT-base), degli autori di mmBERT del Center for Language
 and Speech Processing della Johns Hopkins University, pubblicato con licenza MIT (stesso testo di permesso riportato
 sopra).
+
+## Versione Windows
+
+La versione per Windows include anche: Electron, React, ONNX Runtime, pdf-lib, @pdf-lib/fontkit e fflate (licenza
+MIT); PDF.js (licenza Apache 2.0); il carattere Liberation Sans, usato nei PDF creati dall'app (licenza SIL Open Font
+License 1.1). Le icone dell'interfaccia vengono da Lucide (licenza ISC). Il motore è lo stesso modello del Mac,
+convertito in ONNX, con la licenza MIT riportata sopra.

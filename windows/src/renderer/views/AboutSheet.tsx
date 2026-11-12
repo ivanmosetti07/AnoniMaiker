@@ -22,7 +22,7 @@ export function AboutSheet({ onClose }: { onClose: () => void }) {
           <br />
           Anonimizzazione sul PC, CRM e chat con GPT.
           <br />
-          Open source, licenza MIT.
+          Software libero, licenza GNU GPL v3.
         </div>
         <div className="caption" style={{ marginTop: 10 }}>
           <Button kind="link" onClick={() => void platform.openExternal(UpdateLinks.projectPage)}>Pagina del progetto</Button>

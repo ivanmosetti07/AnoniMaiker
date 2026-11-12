@@ -256,7 +256,7 @@ Varianti:
   DMG.
 
 `Scripts/prepara-motore.sh` rende neutri i metadati del modello: nell'app il motore si chiama solo «motore di
-anonimizzazione», e la licenza MIT sta in `App/Risorse/Licenze.md`.
+anonimizzazione», e la licenza MIT del modello sta in `App/Risorse/Licenze.md`.
 
 ## Struttura
 
@@ -345,8 +345,13 @@ sicurezza (File › Ripristina da una copia di sicurezza…).
 
 ## Licenza
 
-Il codice di AnoniMaiker è rilasciato con licenza [MIT](LICENSE). Il motore di anonimizzazione (pesi del modello e
-pipeline di rilevamento) ha la sua licenza MIT, riportata in [App/Risorse/Licenze.md](App/Risorse/Licenze.md) e
+Il codice di AnoniMaiker (app Mac e app Windows) è software libero: © 2026 Ivan Mosetti, rilasciato con licenza
+[GNU GPL v3](LICENSE) o, a tua scelta, una versione successiva. Puoi usarlo, studiarlo, modificarlo e ridistribuirlo, ma
+chi distribuisce l'app o una sua versione modificata deve farlo con la stessa licenza e con il codice sorgente. Le
+versioni fino alla 0.16 sono state pubblicate con licenza MIT e restano tali.
+
+Il motore di anonimizzazione (pesi del modello e pipeline di rilevamento) e le librerie di terzi hanno le loro licenze
+(MIT, Apache 2.0, SIL OFL), compatibili con la GPL e riportate in [App/Risorse/Licenze.md](App/Risorse/Licenze.md),
 consultabile anche dall'app.
 
 Idee, problemi e contributi sono benvenuti nelle [issue](https://github.com/ivanmosetti07/AnoniMaiker/issues).

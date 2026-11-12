@@ -100,7 +100,7 @@ struct AboutSheet: View {
                 VStack(spacing: 2) {
                     Text("Un prodotto \(Text("MaikerHub").fontWeight(.semibold).foregroundStyle(Color(hex: 0xFF914D)))")
                     Text("Anonimizzazione sul Mac, CRM e chat con GPT.")
-                    Text("Open source, licenza MIT.")
+                    Text("Software libero, licenza GNU GPL v3.")
                 }
                 .font(Tema.caption)
                 .foregroundStyle(Tema.secondary)
