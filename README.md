@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://github.com/ivanmosetti07/AnoniMaiker/releases/latest"><b>Scarica per macOS</b></a> ·
-  <a href="https://github.com/ivanmosetti07/AnoniMaiker/releases/download/windows-v0.16/AnoniMaiker-Setup-0.16.exe"><b>Scarica per Windows</b></a> ·
+  <a href="https://github.com/ivanmosetti07/AnoniMaiker/releases/download/windows-v0.17/AnoniMaiker-Setup-0.17.exe"><b>Scarica per Windows</b></a> ·
   <a href="#scaricare-e-installare">Installazione</a> ·
   <a href="#compilare-dal-codice">Compilare dal codice</a>
 </p>
@@ -42,7 +42,7 @@ anonimizzazione è dentro l'app.
 
 ### Su Windows
 
-1. Scarica **[AnoniMaiker-Setup-0.16.exe](https://github.com/ivanmosetti07/AnoniMaiker/releases/download/windows-v0.16/AnoniMaiker-Setup-0.16.exe)**
+1. Scarica **[AnoniMaiker-Setup-0.17.exe](https://github.com/ivanmosetti07/AnoniMaiker/releases/download/windows-v0.17/AnoniMaiker-Setup-0.17.exe)**
    (tutte le versioni: [release per Windows](https://github.com/ivanmosetti07/AnoniMaiker/releases?q=windows)).
 2. Aprilo: si installa da solo nel tuo utente, senza permessi di amministratore, con le icone nel menu Start e sul
    desktop.
