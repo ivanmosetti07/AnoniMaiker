@@ -22,62 +22,71 @@ struct CompaniesView: View {
         return amounts.isEmpty ? nil : amounts.reduce(0, +)
     }
 
+    /// Le colonne, larghe come su Windows (la prima prende lo spazio che avanza).
+    private static let columns: [(title: String, width: CGFloat?)] = [
+        ("Azienda", nil), ("Stato", 120), ("Città", 130), ("Contatti", 80), ("Trattative aperte", 140), ("Documenti", 90),
+    ]
+
     var body: some View {
-        Group {
-            if model.crm.companies.isEmpty {
-                ContentUnavailableView {
-                    Label("Nessuna azienda", systemImage: "building.2")
-                } description: {
-                    Text("Le aziende trovate nei documenti del progetto arrivano qui da sole. Puoi aggiungerne a mano: i dati restano su questo Mac, cifrati.")
-                } actions: {
-                    Button("Nuova azienda") { editing = Company() }
-                        .buttonStyle(.borderedProminent)
-                }
-            } else {
-                Table(companies, selection: $selection) {
-                    TableColumn("Azienda") { company in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(company.name).fontWeight(.medium)
-                            if !company.sector.isEmpty { Text(company.sector).font(.caption).foregroundStyle(.secondary) }
-                        }
-                    }
-                    .width(min: 200, ideal: 260)
-                    TableColumn("Stato") { company in Badge(text: company.status.title, color: company.status.color) }
-                        .width(min: 90, ideal: 110)
-                    TableColumn("Città") { company in Text(company.city) }
-                        .width(min: 80, ideal: 120)
-                    TableColumn("Contatti") { company in Text("\(model.crm.contacts(of: company.id).count)").monospacedDigit() }
-                        .width(min: 60, ideal: 70)
-                    TableColumn("Trattative aperte") { company in Text(Format.amount(openAmount(company))).monospacedDigit() }
-                        .width(min: 110, ideal: 130)
-                    TableColumn("Documenti") { company in Text("\(model.crm.documents(of: company.id).count)").monospacedDigit() }
-                        .width(min: 70, ideal: 80)
-                }
-                .contextMenu(forSelectionType: UUID.self) { ids in
-                    if let id = ids.first, let company = model.crm.company(id) {
-                        Button("Apri la scheda") { model.companiesPath.append(.company(id)) }
-                        Button("Modifica…") { editing = company }
-                    }
-                } primaryAction: { ids in
-                    if let id = ids.first { model.companiesPath.append(.company(id)) }
-                }
-            }
-        }
-        .navigationTitle("Aziende")
-        .navigationSubtitle(model.crm.companies.isEmpty ? "" : "\(model.crm.companies.count)")
-        .searchable(text: $search, prompt: "Cerca nome, città, settore o partita IVA")
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Picker("Stato", selection: $status) {
-                    Text("Tutte").tag(CompanyStatus?.none)
-                    ForEach(CompanyStatus.allCases) { Text($0.title).tag(Optional($0)) }
-                }
-                .pickerStyle(.menu)
-                .help("Filtra per stato")
-                Button("Nuova azienda", systemImage: "plus") { editing = Company() }
+        VStack(spacing: 0) {
+            TopBar(title: "Aziende", subtitle: model.crm.companies.isEmpty ? "" : "\(model.crm.companies.count)") {
+                SearchField(text: $search, prompt: "Cerca nome, città, settore o partita IVA", width: 280)
+                FieldMenu(selection: $status, options: [(value: CompanyStatus?.none, title: "Tutte")]
+                    + CompanyStatus.allCases.map { (value: Optional($0), title: $0.title) })
+                    .fixedSize()
+                    .help("Filtra per stato")
+                    .padding(.leading, 6)
+                Button { editing = Company() } label: { BarIcon(title: "Nuova azienda", symbol: "plus") }
+                    .buttonStyle(.plainIcon)
+                    .help("Nuova azienda")
                     .disabled(!model.isVaultReady)
             }
+            if model.crm.companies.isEmpty {
+                EmptyState(title: "Nessuna azienda", symbol: "building.2",
+                           message: "Le aziende trovate nei documenti del progetto arrivano qui da sole. Puoi aggiungerne a mano: i dati restano su questo Mac, cifrati.") {
+                    Button("Nuova azienda") { editing = Company() }
+                        .buttonStyle(.primary)
+                }
+                .background(Tema.bg)
+            } else {
+                table
+            }
         }
+        .navigationBarBackButtonHidden(true)
         .sheet(item: $editing) { company in CompanyEditor(company: company) }
+    }
+
+    private var table: some View {
+        let widths = Self.columns.map(\.width)
+        return VStack(spacing: 0) {
+            FlatTableHeader(columns: Self.columns)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(companies) { company in
+                        FlatTableRow(isSelected: selection == company.id,
+                                     select: { selection = company.id },
+                                     open: { model.companiesPath.append(.company(company.id)) }) {
+                            FlatCell(width: widths[0]) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(company.name).font(Tema.headline)
+                                    if !company.sector.isEmpty { Text(company.sector).font(Tema.caption).foregroundStyle(Tema.secondary) }
+                                }
+                            }
+                            FlatCell(width: widths[1]) { Badge(text: company.status.title, color: company.status.color) }
+                            FlatCell(width: widths[2]) { Text(company.city) }
+                            FlatCell(width: widths[3]) { Text("\(model.crm.contacts(of: company.id).count)").monospacedDigit() }
+                            FlatCell(width: widths[4]) { Text(Format.amount(openAmount(company))).monospacedDigit() }
+                            FlatCell(width: widths[5]) { Text("\(model.crm.documents(of: company.id).count)").monospacedDigit() }
+                        }
+                        .contextMenu {
+                            Button("Apri la scheda") { model.companiesPath.append(.company(company.id)) }
+                            Button("Modifica…") { editing = company }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .surfaceBackground()
     }
 }

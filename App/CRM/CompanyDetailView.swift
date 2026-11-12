@@ -19,11 +19,18 @@ struct CompanyDetailView: View {
     }
 
     var body: some View {
-        if let company = model.crm.company(companyID) {
-            content(company)
-        } else {
-            ContentUnavailableView("Cliente non trovato", systemImage: "building.2")
+        Group {
+            if let company = model.crm.company(companyID) {
+                content(company)
+            } else {
+                VStack(spacing: 0) {
+                    TopBar(title: "", leading: { CRMBackButton() }, actions: { EmptyView() })
+                    EmptyState("Cliente non trovato", symbol: "building.2")
+                }
+            }
         }
+        .background(Tema.bg)
+        .navigationBarBackButtonHidden(true)
     }
 
     private func title(of tab: Tab) -> String {
@@ -37,15 +44,30 @@ struct CompanyDetailView: View {
 
     private func content(_ company: Company) -> some View {
         VStack(spacing: 0) {
-            CompanyHeader(company: company)
-            Picker("Sezione", selection: $tab) {
-                ForEach(Tab.allCases) { Text(title(of: $0)).tag($0) }
+            TopBar(title: company.name, leading: { CRMBackButton() }) {
+                Button { showingDossier = true } label: { BarIcon(title: "Scheda anonimizzata", symbol: "eye.slash") }
+                    .buttonStyle(.plainIcon)
+                    .help("Scheda anonimizzata: il cliente in un testo anonimizzato, pronto per l'AI")
+                    .disabled(model.engineState == .missing || !model.isVaultReady)
+                BarMenu(title: "Aggiungi", symbol: "plus") {
+                    Button("Contatto…") { editingContact = Contact(companyID: company.id) }
+                    Button("Documenti…") { Task { await model.chooseDocuments(for: company.id) } }
+                    Button("Nota o attività…") { editingActivity = Activity(companyID: company.id) }
+                    Button("Trattativa…") { editingDeal = Deal(companyID: company.id) }
+                }
+                Button { editingCompany = company } label: { BarIcon(title: "Modifica", symbol: "pencil") }
+                    .buttonStyle(.plainIcon)
+                    .help("Modifica")
+                Button { confirmingDeletion = true } label: { BarIcon(title: "Elimina…", symbol: "trash") }
+                    .buttonStyle(.plainIcon)
+                    .help("Elimina…")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
-            Divider()
+            CompanyHeader(company: company)
+            AccentSegmented(selection: $tab, options: Tab.allCases.map { (value: $0, title: title(of: $0)) })
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
+            Rectangle().fill(Tema.border).frame(height: 1)
             Group {
                 switch tab {
                 case .overview: OverviewTab(company: company, editContact: { editingContact = $0 })
@@ -55,22 +77,6 @@ struct CompanyDetailView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .navigationTitle(company.name)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button("Scheda anonimizzata", systemImage: "eye.slash") { showingDossier = true }
-                    .help("Il cliente in un testo anonimizzato, pronto per l'AI")
-                    .disabled(model.engineState == .missing || !model.isVaultReady)
-                Menu("Aggiungi", systemImage: "plus") {
-                    Button("Contatto…") { editingContact = Contact(companyID: company.id) }
-                    Button("Documenti…") { Task { await model.chooseDocuments(for: company.id) } }
-                    Button("Nota o attività…") { editingActivity = Activity(companyID: company.id) }
-                    Button("Trattativa…") { editingDeal = Deal(companyID: company.id) }
-                }
-                Button("Modifica", systemImage: "pencil") { editingCompany = company }
-                Button("Elimina…", systemImage: "trash") { confirmingDeletion = true }
-            }
         }
         .sheet(item: $editingCompany) { CompanyEditor(company: $0) }
         .sheet(item: $editingContact) { ContactEditor(contact: $0) }
@@ -82,6 +88,36 @@ struct CompanyDetailView: View {
         } message: {
             Text("Persone, trattative, attività e documenti restano nel progetto, senza questa azienda. Il dizionario non cambia.")
         }
+        #if DEBUG
+        .onChange(of: ProvaComandi.shared.chiudi) {
+            editingCompany = nil
+            editingContact = nil
+            editingDeal = nil
+            editingActivity = nil
+            showingDossier = false
+        }
+        .onChange(of: ProvaComandi.shared.scheda) { _, value in
+            guard let value else { return }
+            tab = Tab(rawValue: value) ?? tab
+            ProvaComandi.shared.scheda = nil
+        }
+        .onChange(of: ProvaComandi.shared.editor) { _, value in
+            guard let value else { return }
+            ProvaComandi.shared.editor = nil
+            switch value {
+            case "azienda": editingCompany = company
+            case "contatto":
+                let contacts = model.crm.contacts(of: company.id)
+                editingContact = contacts.first { $0.firstName == "Giulia" } ?? contacts.first ?? Contact(companyID: company.id)
+            case "trattativa":
+                let deals = model.crm.deals(of: company.id)
+                editingDeal = deals.first { $0.stage.isOpen } ?? deals.first ?? Deal(companyID: company.id)
+            case "attivita": editingActivity = model.crm.activities(of: company.id).first { $0.kind == .task && !$0.isDone } ?? Activity(companyID: company.id)
+            case "dossier": showingDossier = true
+            default: break
+            }
+        }
+        #endif
     }
 }
 
@@ -92,19 +128,26 @@ private struct CompanyHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "building.2.fill")
+            Image(systemName: "building.2")
                 .font(.system(size: 22))
                 .foregroundStyle(.white)
                 .frame(width: 46, height: 46)
-                .background(company.status.color.gradient, in: RoundedRectangle(cornerRadius: 11))
+                .background {
+                    // Dal colore schiarito di un quinto al colore pieno, come il gradiente di Windows.
+                    RoundedRectangle(cornerRadius: 11)
+                        .fill(LinearGradient(colors: [company.status.color.mix(with: .white, by: 0.2), company.status.color],
+                                             startPoint: .top, endPoint: .bottom))
+                }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(company.name).font(.title2.weight(.semibold))
+                    Text(company.name).font(Tema.title).lineLimit(1)
                     Badge(text: company.status.title, color: company.status.color)
                 }
                 Text([company.sector, company.city, company.vatNumber.isEmpty ? "" : "P.IVA \(company.vatNumber)"]
                     .filter { !$0.isEmpty }.joined(separator: " · "))
-                    .foregroundStyle(.secondary)
+                    .font(Tema.body)
+                    .foregroundStyle(Tema.secondary)
+                    .lineLimit(1)
             }
             Spacer()
             stat("\(model.crm.contacts(of: company.id).count)", "contatti")
@@ -120,11 +163,7 @@ private struct CompanyHeader: View {
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text(value).font(.title3.weight(.semibold)).monospacedDigit()
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(.leading, 16)
+        CRMFigure(value: value, label: label, alignment: .trailing).padding(.leading, 16)
     }
 }
 
@@ -139,34 +178,23 @@ private struct OverviewTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top, spacing: 18) {
-                    GroupBox {
-                        details.frame(maxWidth: .infinity, alignment: .leading).padding(6)
-                    } label: {
-                        Label("Anagrafica", systemImage: "building.2")
-                    }
-                    GroupBox {
-                        contacts.frame(maxWidth: .infinity, alignment: .leading).padding(6)
-                    } label: {
-                        Label("Contatti", systemImage: "person.2")
-                    }
+                    TitledCard(title: "Anagrafica", symbol: "building.2") { details }
+                    TitledCard(title: "Contatti", symbol: "person.2") { contacts }
                 }
                 if !company.notes.isEmpty {
-                    GroupBox {
-                        Text(company.notes).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(6)
-                    } label: {
-                        Label("Note", systemImage: "note.text")
+                    TitledCard(title: "Note", symbol: "note.text") {
+                        Text(company.notes).font(Tema.body).textSelection(.enabled)
                     }
                 }
-                GroupBox {
-                    HStack {
+                TitledCard(title: "Privacy", symbol: "lock.shield") {
+                    HStack(spacing: 12) {
                         Text("\(model.vault.entries(of: company.id).count) dati di questo cliente sono nel dizionario: nei testi anonimizzati diventano segnaposto e tornano veri riconvertendo.")
-                            .foregroundStyle(.secondary)
-                        Spacer()
+                            .font(Tema.body)
+                            .foregroundStyle(Tema.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         Button("Mostra nel dizionario") { model.showDictionary(of: company.id) }
+                            .buttonStyle(.flat)
                     }
-                    .padding(6)
-                } label: {
-                    Label("Privacy", systemImage: "lock.shield")
                 }
             }
             .padding(20)
@@ -185,7 +213,7 @@ private struct OverviewTab: View {
             ("IBAN", company.iban, company.iban.isEmpty ? nil : Validators.isValidIBAN(company.iban)),
         ].filter { !$0.1.isEmpty }
         if rows.isEmpty {
-            Text("Nessun dato: aggiungili con Modifica.").foregroundStyle(.secondary)
+            Text("Nessun dato: aggiungili con Modifica.").font(Tema.body).foregroundStyle(Tema.secondary)
         } else {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 7) {
                 ForEach(rows, id: \.0) { row in DetailRow(title: row.0, value: row.1, valid: row.2) }
@@ -197,18 +225,18 @@ private struct OverviewTab: View {
         let contacts = model.crm.contacts(of: company.id)
         VStack(alignment: .leading, spacing: 10) {
             if contacts.isEmpty {
-                Text("Nessun contatto.").foregroundStyle(.secondary)
+                Text("Nessun contatto.").font(Tema.body).foregroundStyle(Tema.secondary)
             }
             ForEach(contacts) { contact in
                 Button { editContact(contact) } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(contact.fullName).fontWeight(.medium)
-                            if !contact.role.isEmpty { Text(contact.role).foregroundStyle(.secondary) }
+                            Text(contact.fullName).font(Tema.headline).foregroundStyle(Tema.text)
+                            if !contact.role.isEmpty { Text(contact.role).font(Tema.body).foregroundStyle(Tema.secondary) }
                         }
                         Text([contact.email, contact.mobile.isEmpty ? contact.phone : contact.mobile].filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(Tema.caption)
+                            .foregroundStyle(Tema.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -219,8 +247,10 @@ private struct OverviewTab: View {
                     Button("Elimina", role: .destructive) { Task { await model.deleteContact(contact.id) } }
                 }
             }
-            Button("Nuovo contatto", systemImage: "plus") { editContact(Contact(companyID: company.id)) }
-                .buttonStyle(.link)
+            Button { editContact(Contact(companyID: company.id)) } label: {
+                Label("Nuovo contatto", systemImage: "plus").font(Tema.body)
+            }
+            .buttonStyle(.accentLink)
         }
     }
 }
@@ -234,35 +264,34 @@ private struct DocumentsTab: View {
 
     var body: some View {
         let documents = model.crm.documents(of: company.id)
-        Group {
+        VStack(spacing: 0) {
             if documents.isEmpty {
-                ContentUnavailableView {
-                    Label("Nessun documento", systemImage: "doc.text")
-                } description: {
-                    Text("Trascina qui i file del cliente (testo, Markdown, CSV, Excel, Word, PDF), o aggiungili con il pulsante. Restano cifrati su questo Mac; da qui li anonimizzi e riconverti le risposte dell'AI.")
-                } actions: {
+                EmptyState(title: "Nessun documento", symbol: "doc.text",
+                           message: "Trascina qui i file del cliente (testo, Markdown, CSV, Excel, Word, PDF), o aggiungili con il pulsante. Restano cifrati su questo Mac; da qui li anonimizzi e riconverti le risposte dell'AI.") {
                     Button("Aggiungi documenti…") { Task { await model.chooseDocuments(for: company.id) } }
+                        .buttonStyle(.flat)
                 }
             } else {
-                List(documents) { document in
-                    NavigationLink(value: CRMRoute.document(document.id)) {
+                FlatList {
+                    ForEach(documents) { document in
                         DocumentRow(document: document)
-                    }
-                    .contextMenu {
-                        Button("Anonimizza") { Task { await model.anonymizeDocument(document.id) } }
-                            .disabled(model.engineState == .missing)
-                        Divider()
-                        Button("Elimina", role: .destructive) { Task { await model.deleteDocument(document.id) } }
+                            .flatRow()
+                            .onTapGesture { model.companiesPath.append(.document(document.id)) }
+                            .contextMenu {
+                                Button("Anonimizza") { Task { await model.anonymizeDocument(document.id) } }
+                                    .disabled(model.engineState == .missing)
+                                Divider()
+                                Button("Elimina", role: .destructive) { Task { await model.deleteDocument(document.id) } }
+                            }
                     }
                 }
-                .safeAreaInset(edge: .bottom) {
-                    HStack {
-                        Text("Trascina qui altri file: testo, CSV, Excel, Word, PDF").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Aggiungi documenti…", systemImage: "doc.badge.plus") { Task { await model.chooseDocuments(for: company.id) } }
+                BottomBar {
+                    Text("Trascina qui altri file: testo, CSV, Excel, Word, PDF").font(Tema.caption).foregroundStyle(Tema.secondary)
+                    Spacer()
+                    Button { Task { await model.chooseDocuments(for: company.id) } } label: {
+                        Label("Aggiungi documenti…", systemImage: "doc.badge.plus")
                     }
-                    .padding(10)
-                    .background(.bar)
+                    .buttonStyle(.flat)
                 }
             }
         }
@@ -270,17 +299,11 @@ private struct DocumentsTab: View {
             Task { await model.addDocuments(urls, to: company.id) }
             return true
         } isTargeted: { isTargeted = $0 }
-        .overlay {
-            if isTargeted {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [7]))
-                    .padding(8)
-                    .allowsHitTesting(false)
-            }
-        }
+        .overlay { if isTargeted { DropOutline(inset: 8, radius: 12) } }
     }
 }
 
+/// Un documento in elenco: icona del formato, titolo semibold, stato.
 struct DocumentRow: View {
     @Environment(AppModel.self) private var model
     let document: CRMDocument
@@ -288,28 +311,30 @@ struct DocumentRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: document.format.symbol)
-                .font(.title2)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 20))
+                .foregroundStyle(Tema.secondary)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
-                Text(document.title).fontWeight(.medium)
+                Text(document.title).font(Tema.headline).foregroundStyle(Tema.text).lineLimit(1)
                 Text([document.format.title, document.original?.fileName ?? "", Format.date(document.created)].filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Tema.caption)
+                    .foregroundStyle(Tema.secondary)
+                    .lineLimit(1)
             }
             Spacer()
             if model.busyDocuments.contains(document.id) {
                 ProgressView().controlSize(.small)
             } else if document.anonymized != nil {
-                Badge(text: "Anonimizzato", color: .green)
+                Badge(text: "Anonimizzato", color: Tema.green)
             } else {
-                Badge(text: "Da anonimizzare", color: .orange)
+                Badge(text: "Da anonimizzare", color: Tema.orange)
             }
             if !document.answers.isEmpty {
-                Badge(text: document.answers.count == 1 ? "1 versione AI" : "\(document.answers.count) versioni AI", color: .indigo)
+                Badge(text: document.answers.count == 1 ? "1 versione AI" : "\(document.answers.count) versioni AI", color: Tema.indigo)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 }
 
@@ -326,30 +351,31 @@ private struct ActivitiesTab: View {
         let activities = model.crm.activities(of: company.id)
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Picker("Tipo", selection: $kind) {
-                    ForEach(ActivityKind.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
-                }
-                .labelsHidden()
-                .frame(width: 140)
-                TextField(kind == .task ? "Cosa c'è da fare?" : "Scrivi una nota, l'esito di una chiamata, una riunione…", text: $text)
-                    .textFieldStyle(.roundedBorder)
+                FieldMenu(selection: $kind, options: ActivityKind.allCases.map { (value: $0, title: $0.title) }, width: 140)
+                    .help("Tipo")
+                TextField("", text: $text, prompt: Text(kind == .task ? "Cosa c'è da fare?" : "Scrivi una nota, l'esito di una chiamata, una riunione…"))
+                    .styledField()
                     .onSubmit(add)
                 Button("Aggiungi", action: add)
+                    .buttonStyle(.flat)
                     .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(12)
-            Divider()
+            Rectangle().fill(Tema.border).frame(height: 1)
             if activities.isEmpty {
-                ContentUnavailableView("Nessuna nota o attività", systemImage: "note.text",
-                                       description: Text("Scrivi qui sopra: chiamate, riunioni, cose da fare. Entrano anche nella scheda anonimizzata."))
+                EmptyState("Nessuna nota o attività", symbol: "note.text",
+                           message: "Scrivi qui sopra: chiamate, riunioni, cose da fare. Entrano anche nella scheda anonimizzata.")
             } else {
-                List(activities) { activity in
-                    ActivityRow(activity: activity)
-                        .onTapGesture(count: 2) { edit(activity) }
-                        .contextMenu {
-                            Button("Modifica…") { edit(activity) }
-                            Button("Elimina", role: .destructive) { Task { await model.deleteActivity(activity.id) } }
-                        }
+                FlatList {
+                    ForEach(activities) { activity in
+                        ActivityRow(activity: activity)
+                            .flatRow()
+                            .onTapGesture(count: 2) { edit(activity) }
+                            .contextMenu {
+                                Button("Modifica…") { edit(activity) }
+                                Button("Elimina", role: .destructive) { Task { await model.deleteActivity(activity.id) } }
+                            }
+                    }
                 }
             }
         }
@@ -374,31 +400,29 @@ private struct DealsTab: View {
 
     var body: some View {
         let deals = model.crm.deals(of: company.id)
-        Group {
+        VStack(spacing: 0) {
             if deals.isEmpty {
-                ContentUnavailableView {
-                    Label("Nessuna trattativa", systemImage: "eurosign.circle")
-                } description: {
-                    Text("Preventivi e opportunità del cliente, con importo, fase e probabilità.")
-                } actions: {
+                EmptyState(title: "Nessuna trattativa", symbol: "eurosign.circle",
+                           message: "Preventivi e opportunità del cliente, con importo, fase e probabilità.") {
                     Button("Nuova trattativa") { edit(Deal(companyID: company.id)) }
+                        .buttonStyle(.flat)
                 }
             } else {
-                List(deals) { deal in
-                    DealRow(deal: deal)
-                        .onTapGesture(count: 2) { edit(deal) }
-                        .contextMenu {
-                            Button("Modifica…") { edit(deal) }
-                            Button("Elimina", role: .destructive) { Task { await model.deleteDeal(deal.id) } }
-                        }
-                }
-                .safeAreaInset(edge: .bottom) {
-                    HStack {
-                        Spacer()
-                        Button("Nuova trattativa", systemImage: "plus") { edit(Deal(companyID: company.id)) }
+                FlatList {
+                    ForEach(deals) { deal in
+                        DealRow(deal: deal)
+                            .flatRow()
+                            .onTapGesture(count: 2) { edit(deal) }
+                            .contextMenu {
+                                Button("Modifica…") { edit(deal) }
+                                Button("Elimina", role: .destructive) { Task { await model.deleteDeal(deal.id) } }
+                            }
                     }
-                    .padding(10)
-                    .background(.bar)
+                }
+                BottomBar {
+                    Spacer()
+                    Button { edit(Deal(companyID: company.id)) } label: { Label("Nuova trattativa", systemImage: "plus") }
+                        .buttonStyle(.flat)
                 }
             }
         }

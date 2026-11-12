@@ -37,13 +37,10 @@ struct TablePreview: View {
     var body: some View {
         VStack(spacing: 0) {
             if sheets.count > 1 {
-                Picker("Foglio", selection: $selected) {
-                    ForEach(sheets.indices, id: \.self) { Text(sheets[$0].name).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .padding(8)
-                Divider()
+                AccentSegmented(selection: $selected, options: sheets.indices.map { (value: $0, title: sheets[$0].name) })
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                Rectangle().fill(Tema.border).frame(height: 1)
             }
             if let sheet = sheets.indices.contains(index) ? sheets[index] : nil, !sheet.rows.isEmpty {
                 let widths = Self.columnWidths(sheet.rows)
@@ -61,9 +58,10 @@ struct TablePreview: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
-                Text("Foglio vuoto").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+                Text("Foglio vuoto").font(Tema.body).foregroundStyle(Tema.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .background(Tema.surface)
     }
 
     private func changed(_ row: Int, _ column: Int) -> Bool {
@@ -87,8 +85,8 @@ struct TablePreview: View {
 
     private func cell(_ text: String, width: CGFloat, header: Bool, changed: Bool) -> some View {
         Text(attributed(text))
-            .font(.callout)
-            .fontWeight(header ? .semibold : .regular)
+            .font(.system(size: 12, weight: header ? .semibold : .regular))
+            .foregroundStyle(Tema.text)
             .lineLimit(8)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
@@ -96,8 +94,8 @@ struct TablePreview: View {
             .padding(.vertical, 5)
             .frame(width: width, alignment: .topLeading)
             .frame(maxHeight: .infinity, alignment: .topLeading)
-            .background(changed ? Color.accentColor.opacity(0.14) : header ? Color.secondary.opacity(0.08) : .clear)
-            .overlay(Rectangle().stroke(Color.secondary.opacity(0.18), lineWidth: 0.5))
+            .background(changed ? Tema.accentSoft : header ? Tema.selected : .clear)
+            .overlay(Rectangle().stroke(Color.gray.opacity(0.25), lineWidth: 0.5))
     }
 
     private func attributed(_ text: String) -> AttributedString {
@@ -105,8 +103,10 @@ struct TablePreview: View {
         guard highlightPlaceholders else { return result }
         for range in Revealer.placeholderRanges(in: text) {
             if let span = Range(range, in: result) {
-                result[span].foregroundColor = .accentColor
-                result[span].inlinePresentationIntent = .stronglyEmphasized
+                // Come nel testo: arancio scuro, semibold, su arancio tenue.
+                result[span].foregroundColor = Tema.accentStrong
+                result[span].backgroundColor = Tema.accentSoft
+                result[span].font = .system(size: 12, weight: .semibold)
             }
         }
         return result

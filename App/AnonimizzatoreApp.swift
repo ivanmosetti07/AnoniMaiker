@@ -6,14 +6,23 @@ import SwiftUI
 struct AnonimizzatoreApp: App {
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
     @State private var model = AppModel()
+    @State private var sheets = AppSheets.shared
 
     var body: some Scene {
         Window("AnoniMaiker", id: "principale") {
             ContentView()
                 .environment(model)
-                .task { await model.start() }
+                .environment(sheets)
+                .task {
+                    await model.start()
+                    #if DEBUG
+                    await ProvaScript.runIfRequested(model)
+                    #endif
+                }
                 .frame(minHeight: 540)
         }
+        // Niente barra del titolo: il logo sta in cima alla barra laterale, come su Windows.
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1200, height: 760)
         .commands {
             // Una finestra sola: niente «Nuova finestra».
@@ -28,10 +37,15 @@ struct AnonimizzatoreApp: App {
                     .keyboardShortcut("p", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .appInfo) {
-                Button("Informazioni su AnoniMaiker") { AboutPanel.show() }
+                Button("Informazioni su AnoniMaiker") { sheets.showsAbout = true }
             }
             CommandGroup(after: .appInfo) {
                 Button("Controlla aggiornamenti…") { Task { await model.checkForUpdates(userInitiated: true) } }
+            }
+            // Le impostazioni sono una finestra sopra la finestra, come su Windows.
+            CommandGroup(replacing: .appSettings) {
+                Button("Impostazioni…") { sheets.showsSettings = true }
+                    .keyboardShortcut(",")
             }
             CommandGroup(replacing: .help) {
                 Button("Guida di AnoniMaiker") { model.showsGuide = true }
@@ -48,11 +62,6 @@ struct AnonimizzatoreApp: App {
                 Button("Ripristina da una copia di sicurezza…") { model.startRestore() }
             }
         }
-
-        Settings {
-            SettingsView()
-                .environment(model)
-        }
     }
 }
 
@@ -61,21 +70,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 
-/// «Informazioni su»: versione, MaikerHub e collegamenti al progetto.
-enum AboutPanel {
-    static func show() {
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        let base: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor,
-                                                    .paragraphStyle: style]
-        let credits = NSMutableAttributedString(string: "Un prodotto ", attributes: base)
-        credits.append(NSAttributedString(string: "MaikerHub", attributes: base.merging([
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
-            .foregroundColor: NSColor(srgbRed: 1, green: 0x91 / 255, blue: 0x4D / 255, alpha: 1),
-        ]) { $1 }))
-        credits.append(NSAttributedString(string: "\nAnonimizzazione sul Mac, CRM e chat con GPT.\nOpen source, licenza MIT.\n\n", attributes: base))
-        credits.append(NSAttributedString(string: "Pagina del progetto", attributes: base.merging([.link: Updates.projectPage]) { $1 }))
-        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
-        NSApp.activate()
+/// Le finestre sopra la finestra aperte dal menu dell'app: impostazioni e «Informazioni su».
+@MainActor @Observable
+final class AppSheets {
+    static let shared = AppSheets()
+
+    var showsSettings = false
+    var showsAbout = false
+    /// La pagina delle impostazioni aperta.
+    var settingsTab: SettingsTab = .categories
+}
+
+/// «Informazioni su»: simbolo, versione, MaikerHub e collegamento al progetto.
+struct AboutSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                Image("Simbolo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+                    .accessibilityHidden(true)
+                Text("AnoniMaiker").font(Tema.title2).padding(.top, 6)
+                Text("Versione \(AppModel.appVersion)").font(Tema.caption).foregroundStyle(Tema.secondary).textSelection(.enabled)
+                VStack(spacing: 2) {
+                    Text("Un prodotto \(Text("MaikerHub").fontWeight(.semibold).foregroundStyle(Color(hex: 0xFF914D)))")
+                    Text("Anonimizzazione sul Mac, CRM e chat con GPT.")
+                    Text("Open source, licenza MIT.")
+                }
+                .font(Tema.caption)
+                .foregroundStyle(Tema.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.top, 10)
+                Button("Pagina del progetto") { NSWorkspace.shared.open(Updates.projectPage) }
+                    .buttonStyle(.accentLink)
+                    .font(Tema.caption)
+                    .padding(.top, 10)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 30)
+            .padding(.top, 26)
+            .padding(.bottom, 22)
+            SheetActions {
+                Button("OK") { dismiss() }
+                    .buttonStyle(.primary)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .frame(width: 380)
+        .background(Tema.surface)
     }
 }

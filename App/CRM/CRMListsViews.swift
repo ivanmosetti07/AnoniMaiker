@@ -20,46 +20,61 @@ struct ContactsView: View {
     }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            TopBar(title: "Persone", subtitle: model.crm.contacts.isEmpty ? "" : "\(model.crm.contacts.count)") {
+                SearchField(text: $search, prompt: "Cerca nome, email, ruolo o azienda", width: 280)
+                Button { editing = Contact() } label: { BarIcon(title: "Nuova persona", symbol: "plus") }
+                    .buttonStyle(.plainIcon)
+                    .help("Nuova persona")
+                    .disabled(!model.isVaultReady)
+            }
             if model.crm.contacts.isEmpty {
-                ContentUnavailableView {
-                    Label("Nessuna persona", systemImage: "person.2")
-                } description: {
-                    Text("Le persone trovate nei documenti del progetto arrivano qui da sole, con email e telefoni. Il CRM le conosce, quindi si nascondono anche dove il motore non le vede.")
-                } actions: {
+                EmptyState(title: "Nessuna persona", symbol: "person.2",
+                           message: "Le persone trovate nei documenti del progetto arrivano qui da sole, con email e telefoni. Il CRM le conosce, quindi si nascondono anche dove il motore non le vede.") {
                     Button("Nuova persona") { editing = Contact() }
+                        .buttonStyle(.flat)
                 }
+                .background(Tema.bg)
             } else {
-                Table(contacts, selection: $selection) {
-                    TableColumn("Nome") { contact in Text(contact.fullName).fontWeight(.medium) }
-                        .width(min: 140, ideal: 180)
-                    TableColumn("Ruolo") { contact in Text(contact.role) }
-                    TableColumn("Azienda") { contact in Text(model.crm.company(contact.companyID)?.name ?? "—") }
-                    TableColumn("Email") { contact in Text(contact.email).textSelection(.enabled) }
-                    TableColumn("Telefono") { contact in Text(contact.mobile.isEmpty ? contact.phone : contact.mobile).monospacedDigit() }
-                }
-                .contextMenu(forSelectionType: UUID.self) { ids in
-                    if let id = ids.first, let contact = model.crm.contact(id) {
-                        Button("Modifica…") { editing = contact }
-                        if let companyID = contact.companyID {
-                            Button("Apri l'azienda") { model.openCompany(companyID) }
+                table
+            }
+        }
+        .sheet(item: $editing) { ContactEditor(contact: $0) }
+    }
+
+    private var table: some View {
+        // Il nome largo il 22%, le altre colonne si dividono il resto (come la tabella di Windows).
+        GeometryReader { proxy in
+            let name = proxy.size.width * 0.22
+            let other = (proxy.size.width - name) / 4
+            VStack(spacing: 0) {
+                FlatTableHeader(columns: [("Nome", name), ("Ruolo", other), ("Azienda", other), ("Email", other), ("Telefono", other)])
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(contacts) { contact in
+                            FlatTableRow(isSelected: selection == contact.id,
+                                         select: { selection = contact.id },
+                                         open: { editing = contact }) {
+                                FlatCell(width: name) { Text(contact.fullName).font(Tema.headline) }
+                                FlatCell(width: other) { Text(contact.role) }
+                                FlatCell(width: other) { Text(model.crm.company(contact.companyID)?.name ?? "—") }
+                                FlatCell(width: other) { Text(contact.email).textSelection(.enabled) }
+                                FlatCell(width: other) { Text(contact.mobile.isEmpty ? contact.phone : contact.mobile).monospacedDigit() }
+                            }
+                            .contextMenu {
+                                Button("Modifica…") { editing = contact }
+                                if let companyID = contact.companyID {
+                                    Button("Apri l'azienda") { model.openCompany(companyID) }
+                                }
+                                Divider()
+                                Button("Elimina", role: .destructive) { Task { await model.deleteContact(contact.id) } }
+                            }
                         }
-                        Divider()
-                        Button("Elimina", role: .destructive) { Task { await model.deleteContact(id) } }
                     }
-                } primaryAction: { ids in
-                    if let id = ids.first { editing = model.crm.contact(id) }
                 }
             }
         }
-        .navigationTitle("Persone")
-        .navigationSubtitle(model.crm.contacts.isEmpty ? "" : "\(model.crm.contacts.count)")
-        .searchable(text: $search, prompt: "Cerca nome, email, ruolo o azienda")
-        .toolbar {
-            Button("Nuova persona", systemImage: "plus") { editing = Contact() }
-                .disabled(!model.isVaultReady)
-        }
-        .sheet(item: $editing) { ContactEditor(contact: $0) }
+        .surfaceBackground()
     }
 }
 
@@ -101,56 +116,51 @@ struct DealsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            TopBar(title: "Trattative") {
+                Button { editing = Deal() } label: { BarIcon(title: "Nuova trattativa", symbol: "plus") }
+                    .buttonStyle(.plainIcon)
+                    .help("Nuova trattativa")
+                    .disabled(!model.isVaultReady)
+            }
             HStack(spacing: 28) {
-                figure(Format.amount(summary.open), "in trattative aperte")
-                figure(Format.amount(summary.weighted), "pesato con la probabilità")
-                figure(Format.amount(summary.won), "vinto")
+                CRMFigure(value: Format.amount(summary.open), label: "in trattative aperte")
+                CRMFigure(value: Format.amount(summary.weighted), label: "pesato con la probabilità")
+                CRMFigure(value: Format.amount(summary.won), label: "vinto")
                 Spacer()
-                Picker("Mostra", selection: $filter) {
-                    ForEach(Filter.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 300)
+                AccentSegmented(selection: $filter, options: Filter.allCases.map { (value: $0, title: $0.title) })
             }
             .padding(16)
-            Divider()
+            .background(Tema.bg)
+            Rectangle().fill(Tema.border).frame(height: 1)
             if deals.isEmpty {
-                ContentUnavailableView {
-                    Label(filter == .open ? "Nessuna trattativa aperta" : "Nessuna trattativa", systemImage: "eurosign.circle")
-                } description: {
-                    Text(model.crm.companies.isEmpty ? "Le opportunità e i preventivi del progetto, con importo, fase e probabilità." : "Preventivi e opportunità dei tuoi clienti.")
-                }
-                .frame(maxHeight: .infinity)
+                EmptyState(filter == .open ? "Nessuna trattativa aperta" : "Nessuna trattativa", symbol: "eurosign.circle",
+                           message: model.crm.companies.isEmpty ? "Le opportunità e i preventivi del progetto, con importo, fase e probabilità." : "Preventivi e opportunità dei tuoi clienti.")
+                    .background(Tema.bg)
             } else {
-                List(deals) { deal in
-                    DealRow(deal: deal, showCompany: true)
-                        .onTapGesture(count: 2) { editing = deal }
-                        .contextMenu {
-                            Button("Modifica…") { editing = deal }
-                            Button("Apri l'azienda") { model.openCompany(deal.companyID) }
-                            Divider()
-                            Button("Elimina", role: .destructive) { Task { await model.deleteDeal(deal.id) } }
-                        }
+                FlatList {
+                    ForEach(deals) { deal in
+                        DealRow(deal: deal, showCompany: true)
+                            .flatRow()
+                            .onTapGesture(count: 2) { editing = deal }
+                            .contextMenu {
+                                Button("Modifica…") { editing = deal }
+                                Button("Apri l'azienda") { model.openCompany(deal.companyID) }
+                                    .disabled(deal.companyID == nil)
+                                Divider()
+                                Button("Elimina", role: .destructive) { Task { await model.deleteDeal(deal.id) } }
+                            }
+                    }
                 }
             }
-        }
-        .navigationTitle("Trattative")
-        .toolbar {
-            Button("Nuova trattativa", systemImage: "plus") {
-                editing = Deal()
-            }
-            .disabled(!model.isVaultReady)
-            .help(model.crm.companies.isEmpty ? "Nuova trattativa" : "Nuova trattativa")
         }
         .sheet(item: $editing) { DealEditor(deal: $0) }
-    }
-
-    private func figure(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.title3.weight(.semibold)).monospacedDigit()
-            Text(label).font(.caption).foregroundStyle(.secondary)
+        #if DEBUG
+        .onChange(of: ProvaComandi.shared.filtro) { _, value in
+            guard value != nil else { return }
+            filter = .all
+            ProvaComandi.shared.filtro = nil
         }
+        #endif
     }
 }
 
@@ -164,40 +174,45 @@ struct ActivitiesView: View {
     }
 
     var body: some View {
-        Group {
-            if activities.isEmpty {
-                ContentUnavailableView(showAll ? "Nessuna nota o attività" : "Niente da fare",
-                                       systemImage: showAll ? "note.text" : "checkmark.circle",
-                                       description: Text(showAll ? "Note, chiamate, riunioni e cose da fare dei tuoi clienti."
-                                                         : "Le cose da fare di tutti i clienti compaiono qui, dalla scadenza più vicina."))
-            } else {
-                List(activities) { activity in
-                    ActivityRow(activity: activity, showCompany: true)
-                        .onTapGesture(count: 2) { editing = activity }
-                        .contextMenu {
-                            Button("Modifica…") { editing = activity }
-                            if let companyID = activity.companyID {
-                                Button("Apri l'azienda") { model.openCompany(companyID) }
-                            }
-                            Divider()
-                            Button("Elimina", role: .destructive) { Task { await model.deleteActivity(activity.id) } }
-                        }
-                }
-            }
-        }
-        .navigationTitle("Attività")
-        .navigationSubtitle(showAll ? "Tutte" : "Da fare")
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Picker("Mostra", selection: $showAll) {
-                    Text("Da fare").tag(false)
-                    Text("Tutte").tag(true)
-                }
-                .pickerStyle(.segmented)
-                Button("Nuova attività", systemImage: "plus") { editing = Activity(kind: .task) }
+        VStack(spacing: 0) {
+            TopBar(title: "Attività", subtitle: showAll ? "Tutte" : "Da fare") {
+                AccentSegmented(selection: $showAll, options: [(value: false, title: "Da fare"), (value: true, title: "Tutte")])
+                Button { editing = Activity(kind: .task) } label: { BarIcon(title: "Nuova attività", symbol: "plus") }
+                    .buttonStyle(.plainIcon)
+                    .help("Nuova attività")
                     .disabled(!model.isVaultReady)
+                    .padding(.leading, 6)
+            }
+            if activities.isEmpty {
+                EmptyState(showAll ? "Nessuna nota o attività" : "Niente da fare", symbol: showAll ? "note.text" : "checkmark.circle",
+                           message: showAll ? "Note, chiamate, riunioni e cose da fare dei tuoi clienti."
+                               : "Le cose da fare di tutti i clienti compaiono qui, dalla scadenza più vicina.")
+                    .background(Tema.bg)
+            } else {
+                FlatList {
+                    ForEach(activities) { activity in
+                        ActivityRow(activity: activity, showCompany: true)
+                            .flatRow()
+                            .onTapGesture(count: 2) { editing = activity }
+                            .contextMenu {
+                                Button("Modifica…") { editing = activity }
+                                if let companyID = activity.companyID {
+                                    Button("Apri l'azienda") { model.openCompany(companyID) }
+                                }
+                                Divider()
+                                Button("Elimina", role: .destructive) { Task { await model.deleteActivity(activity.id) } }
+                            }
+                    }
+                }
             }
         }
         .sheet(item: $editing) { ActivityEditor(activity: $0) }
+        #if DEBUG
+        .onChange(of: ProvaComandi.shared.filtro) { _, value in
+            guard value != nil else { return }
+            showAll = true
+            ProvaComandi.shared.filtro = nil
+        }
+        #endif
     }
 }

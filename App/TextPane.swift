@@ -12,15 +12,23 @@ struct TextPane: NSViewRepresentable {
     var highlights: [NSRange] = []
     var isEditable = true
     var onDropFile: ((URL) -> Void)?
+    /// Un file trascinato sopra il riquadro (per il contorno tratteggiato).
+    var onDragging: ((Bool) -> Void)?
 
-    static let font = NSFont.systemFont(ofSize: 14)
-    static let highlightFont = NSFont.systemFont(ofSize: 14, weight: .semibold)
+    // Corpo 13 con l'interlinea di Windows (1,55).
+    static let font = NSFont.systemFont(ofSize: 13)
+    static let highlightFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+    static let textColor = NSColor(Tema.text)
 
     static var paragraph: NSParagraphStyle {
         let style = NSMutableParagraphStyle()
-        style.lineSpacing = 3
+        style.minimumLineHeight = 20
+        style.maximumLineHeight = 20
         return style
     }
+
+    /// Con l'altezza della riga fissata il testo sta in basso: lo si alza a metà riga.
+    static let baselineOffset: CGFloat = 2
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -40,7 +48,7 @@ struct TextPane: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         textView.textContainer?.containerSize = NSSize(width: size.width, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
-        textView.textContainerInset = NSSize(width: 14, height: 14)
+        textView.textContainerInset = NSSize(width: 13, height: 14)
         textView.drawsBackground = false
         textView.isRichText = false
         textView.importsGraphics = false
@@ -53,9 +61,12 @@ struct TextPane: NSViewRepresentable {
         textView.isContinuousSpellCheckingEnabled = false
         textView.isGrammarCheckingEnabled = false
         textView.font = Self.font
-        textView.textColor = .labelColor
+        textView.textColor = Self.textColor
+        textView.insertionPointColor = NSColor(Tema.accentStrong)
+        textView.selectedTextAttributes = [.backgroundColor: NSColor(Tema.accent).withAlphaComponent(0.25)]
         textView.defaultParagraphStyle = Self.paragraph
-        textView.typingAttributes = [.font: Self.font, .foregroundColor: NSColor.labelColor, .paragraphStyle: Self.paragraph]
+        textView.typingAttributes = [.font: Self.font, .foregroundColor: Self.textColor, .paragraphStyle: Self.paragraph,
+                                     .baselineOffset: Self.baselineOffset]
         textView.delegate = context.coordinator
         scrollView.documentView = textView
         apply(to: textView, coordinator: context.coordinator)
@@ -72,9 +83,10 @@ struct TextPane: NSViewRepresentable {
         textView.isEditable = isEditable
         textView.isSelectable = true
         textView.onDropFile = onDropFile
+        textView.onDragging = onDragging
         if isEditable {
             if textView.string != text {
-                textView.string = text
+                textView.textStorage?.setAttributedString(Self.attributed(text, highlights: []))
                 coordinator.shown = text
             }
         } else if coordinator.shown != text || coordinator.shownHighlights != highlights {
@@ -87,10 +99,11 @@ struct TextPane: NSViewRepresentable {
 
     /// Il testo con le parti evidenziate (segnaposto o dati rimessi).
     static func attributed(_ text: String, highlights: [NSRange]) -> NSAttributedString {
-        let result = NSMutableAttributedString(string: text, attributes: [.font: font, .foregroundColor: NSColor.labelColor,
-                                                                           .paragraphStyle: paragraph])
-        let mark: [NSAttributedString.Key: Any] = [.font: highlightFont, .foregroundColor: NSColor.controlAccentColor,
-                                                    .backgroundColor: NSColor.controlAccentColor.withAlphaComponent(0.14)]
+        let result = NSMutableAttributedString(string: text, attributes: [.font: font, .foregroundColor: textColor,
+                                                                           .paragraphStyle: paragraph, .baselineOffset: baselineOffset])
+        // I segnaposto e i dati rimessi: arancio scuro, semibold, su arancio tenue (come su Windows).
+        let mark: [NSAttributedString.Key: Any] = [.font: highlightFont, .foregroundColor: NSColor(Tema.accentStrong),
+                                                    .backgroundColor: NSColor(Tema.accentSoft)]
         for range in highlights where NSMaxRange(range) <= result.length {
             result.addAttributes(mark, range: range)
         }
@@ -117,6 +130,7 @@ struct TextPane: NSViewRepresentable {
 /// NSTextView che accetta i file .txt e .md trascinati (li apre invece di incollarne il percorso).
 final class PaneTextView: NSTextView {
     var onDropFile: ((URL) -> Void)?
+    var onDragging: ((Bool) -> Void)?
 
     private func droppedFile(_ sender: NSDraggingInfo) -> URL? {
         guard onDropFile != nil else { return nil }
@@ -125,7 +139,19 @@ final class PaneTextView: NSTextView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        droppedFile(sender) != nil ? .copy : super.draggingEntered(sender)
+        guard droppedFile(sender) != nil else { return super.draggingEntered(sender) }
+        onDragging?(true)
+        return .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onDragging?(false)
+        super.draggingExited(sender)
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        onDragging?(false)
+        super.draggingEnded(sender)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {

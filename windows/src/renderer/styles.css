@@ -222,3 +222,6 @@ mark.rv { background: var(--accent-soft); color: var(--accent-strong); font-weig
 .search { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-small); padding: 0 8px; }
 .search input { border: none; box-shadow: none !important; padding: 5px 0; background: transparent; flex: 1; min-width: 80px; }
 .search svg { color: var(--tertiary); }
+
+/* Un pulsante leggero acceso («Mostra valori», la chat): arancio tenue, come sul Mac. */
+.btn.plain.on { background: var(--accent-soft); border-color: transparent; color: var(--accent-strong); }

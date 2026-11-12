@@ -8,7 +8,7 @@ import { DocumentFormat } from "../documenti";
 // è il testo che si anonimizza e si dà all'AI per preparare un'offerta, una mail, un riepilogo.
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
-const amountFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const amountFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 const farFuture = Number.POSITIVE_INFINITY;
 
 export class ClientDossier {

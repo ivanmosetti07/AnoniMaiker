@@ -23,38 +23,45 @@ struct ProjectsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Progetti").font(.largeTitle).fontWeight(.semibold)
+                        Text("Progetti").font(Tema.largeTitle).foregroundStyle(Tema.text)
                         Text("Ogni progetto contiene i suoi documenti, il suo CRM e il suo dizionario: anonimizzi, riconverti e chiedi a GPT sempre dentro un progetto.")
-                            .foregroundStyle(.secondary)
+                            .font(Tema.body)
+                            .foregroundStyle(Tema.secondary)
+                            .lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer()
-                    Button("Nuovo progetto", systemImage: "plus") { naming = .create }
-                        .buttonStyle(.borderedProminent)
+                    Spacer(minLength: 0)
+                    Button { naming = .create } label: { Label("Nuovo progetto", systemImage: "plus") }
+                        .buttonStyle(.primaryLarge)
                         .keyboardShortcut("n", modifiers: [.command, .shift])
                         .disabled(!model.isVaultReady)
+                        .help("Nuovo progetto (⇧⌘N)")
                 }
                 if model.projects.isEmpty {
                     VStack(spacing: 10) {
-                        Image(systemName: "folder.badge.plus").font(.system(size: 40, weight: .light)).foregroundStyle(.secondary)
-                        Text("Nessun progetto").font(.title3)
+                        Image(systemName: "folder.badge.plus").font(.system(size: 40, weight: .light)).foregroundStyle(Tema.secondary)
+                        Text("Nessun progetto").font(.system(size: 16)).foregroundStyle(Tema.text)
                         Text("Crea il primo: per esempio il nome di un cliente, di un evento o di una pratica.")
-                            .foregroundStyle(.secondary)
+                            .font(Tema.body)
+                            .foregroundStyle(Tema.secondary)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 60)
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 14)], spacing: 14) {
                         ForEach(model.projects) { project in
-                            card(project)
+                            ProjectCard(project: project, onRename: { naming = .rename(project) }, onDelete: { deleting = project })
                         }
                     }
                 }
             }
             .padding(28)
         }
-        .navigationTitle("Progetti")
+        .scrollContentBackground(.hidden)
+        .background(Tema.bg)
         .sheet(item: $naming) { ProjectNameSheet(naming: $0) }
         // Dalla guida: «Crea il primo progetto».
         .task(id: model.requestsNewProject) {
@@ -70,34 +77,47 @@ struct ProjectsView: View {
             Text("Si cancellano da questo Mac i suoi documenti, il CRM, il dizionario e le conversazioni. I file anonimizzati di questo progetto non si potranno più riconvertire.")
         }
     }
+}
 
-    private func card(_ project: Project) -> some View {
+/// La card di un progetto: grigio tenue, più scuro e con il bordo al passaggio del mouse.
+private struct ProjectCard: View {
+    @Environment(AppModel.self) private var model
+    let project: Project
+    let onRename: () -> Void
+    let onDelete: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
         Button {
             model.selectProject(project.id)
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: "folder.fill")
-                    .font(.title)
-                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 24))
+                    .foregroundStyle(Tema.accent)
                 Text(project.name)
-                    .font(.headline)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Tema.text)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Text("Aggiornato \(Format.date(project.updated))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Tema.caption)
+                    .foregroundStyle(Tema.secondary)
             }
-            .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
             .padding(16)
-            .background(.secondary.opacity(0.08), in: .rect(cornerRadius: 12))
+            .background(Color.gray.opacity(hovering ? 0.13 : 0.08), in: .rect(cornerRadius: Tema.radiusCard))
+            .overlay(RoundedRectangle(cornerRadius: Tema.radiusCard).strokeBorder(hovering ? Tema.border : .clear))
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(project.name)
         .contextMenu {
             Button("Apri") { model.selectProject(project.id) }
-            Button("Rinomina…") { naming = .rename(project) }
+            Button("Rinomina…", action: onRename)
             Divider()
-            Button("Elimina…", role: .destructive) { deleting = project }
+            Button("Elimina…", role: .destructive, action: onDelete)
         }
     }
 }
@@ -111,25 +131,30 @@ struct ProjectNameSheet: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(isNew ? "Nuovo progetto" : "Rinomina il progetto").font(.title3).fontWeight(.semibold)
-            TextField("Nome del progetto", text: $name, prompt: Text("Per esempio: Evento Roma 2027"))
-                .textFieldStyle(.roundedBorder)
-                .focused($focused)
-                .onSubmit(confirm)
-            Text("Il nome resta sul Mac. A GPT arriva anonimizzato, come i titoli dei documenti.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Annulla") { dismiss() }.keyboardShortcut(.cancelAction)
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(isNew ? "Nuovo progetto" : "Rinomina il progetto").font(Tema.title2)
+                TextField("Nome del progetto", text: $name, prompt: Text("Per esempio: Evento Roma 2027"))
+                    .styledField()
+                    .focused($focused)
+                    .onSubmit(confirm)
+                Text("Il nome resta sul Mac. A GPT arriva anonimizzato, come i titoli dei documenti.")
+                    .font(Tema.caption)
+                    .foregroundStyle(Tema.secondary)
+            }
+            .padding(20)
+            SheetActions {
+                Button("Annulla") { dismiss() }
+                    .buttonStyle(.flat)
+                    .keyboardShortcut(.cancelAction)
                 Button(isNew ? "Crea" : "Rinomina", action: confirm)
+                    .buttonStyle(.primary)
                     .keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(22)
         .frame(width: 420)
+        .background(Tema.surface)
         .onAppear {
             if case .rename(let project) = naming { name = project.name }
             focused = true

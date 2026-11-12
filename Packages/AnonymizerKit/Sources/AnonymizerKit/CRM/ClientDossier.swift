@@ -13,8 +13,12 @@ public enum ClientDossier {
     }
 
     /// «12.500,00 €», con spazi normali (il formato di sistema usa spazi non separabili).
+    private static let groupingLocale = Locale(identifier: "de_DE")
+
     public static func amount(_ value: Decimal) -> String {
-        value.formatted(.currency(code: "EUR").locale(locale))
+        // Con l'italiano ICU raggruppa le migliaia solo da cinque cifre («4800,00 €»); il tedesco scrive gli euro allo
+        // stesso modo e raggruppa sempre («4.800,00 €», come la versione Windows).
+        value.formatted(.currency(code: "EUR").locale(groupingLocale))
             .replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ")
     }
 

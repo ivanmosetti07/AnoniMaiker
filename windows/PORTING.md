@@ -11,6 +11,12 @@ verità: ogni comportamento, testo dell'interfaccia e formato di file si copia d
 | `Packages/AnonymizerKit/Tests/AnonymizerKitTests/<Nome>Tests.swift` | `windows/tests/<nome>.test.ts` (vitest) |
 | `App/AppModel*.swift`                                | `windows/src/main/` (processo principale di Electron) |
 | `App/*View*.swift`                                   | `windows/src/renderer/` (React) |
+| `App/Tema/Tema.swift` (colori, misure, pulsanti, mattoni) | `windows/src/renderer/styles.css` e `ui/components.tsx` |
+| `App/CRM/*.swift`                                    | `windows/src/renderer/crm/` |
+| `App/ChatView.swift`, `ChatGPTConnectView.swift`, `ChatMarkdown.swift` | `windows/src/renderer/chat/` |
+| `App/Prova/ProvaScript.swift` (copioni di prova)     | `runScript` in `windows/src/main/index.ts` |
+
+Le due app restano allineate per regola: vedi `CLAUDE.md` alla radice.
 
 - `src/core` è la libreria (AnonymizerKit): solo Node, **mai** `electron` né il DOM. Funziona anche sotto vitest.
 - Ogni cartella di `src/core` ha un `index.ts` che riesporta ciò che usano le altre.

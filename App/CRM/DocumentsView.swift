@@ -16,62 +16,59 @@ struct DocumentsView: View {
     }
 
     var body: some View {
-        Group {
-            if model.crm.documents.isEmpty {
-                ContentUnavailableView {
-                    Label("Nessun documento nel progetto", systemImage: "doc.on.doc")
-                } description: {
-                    Text("Trascina qui i file (testo, Markdown, CSV, Excel, Word, PDF) o aggiungili con il pulsante: si anonimizzano subito, restano cifrati su questo Mac e le persone che contengono entrano nel CRM del progetto. Anche i file anonimizzati nel banco «Anonimizza» arrivano qui.")
-                } actions: {
-                    Button("Aggiungi documenti…") { Task { await model.chooseDocuments(for: nil) } }
-                        .disabled(!model.isVaultReady)
+        VStack(spacing: 0) {
+            TopBar(title: "Documenti", subtitle: model.currentProject?.name ?? "") {
+                if !model.crm.documents.isEmpty {
+                    SearchField(text: $search, prompt: "Cerca nei titoli", width: 220)
                 }
-            } else {
-                List(documents) { document in
-                    NavigationLink(value: CRMRoute.document(document.id)) {
-                        DocumentRow(document: document)
+                Button { Task { await model.chooseDocuments(for: nil) } } label: { BarIcon(title: "Aggiungi documenti…", symbol: "doc.badge.plus") }
+                    .buttonStyle(.plainIcon)
+                    .disabled(!model.isVaultReady)
+                    .help("Aggiungi file al progetto: si anonimizzano subito")
+            }
+            VStack(spacing: 0) {
+                if model.crm.documents.isEmpty {
+                    EmptyState(title: "Nessun documento nel progetto", symbol: "doc.on.doc",
+                               message: "Trascina qui i file (testo, Markdown, CSV, Excel, Word, PDF) o aggiungili con il pulsante: si anonimizzano subito, restano cifrati su questo Mac e le persone che contengono entrano nel CRM del progetto. Anche i file anonimizzati nel banco «Anonimizza» arrivano qui.") {
+                        Button("Aggiungi documenti…") { Task { await model.chooseDocuments(for: nil) } }
+                            .buttonStyle(.flat)
+                            .disabled(!model.isVaultReady)
                     }
-                    .contextMenu {
-                        Button("Anonimizza di nuovo") { Task { await model.anonymizeDocument(document.id) } }
-                            .disabled(model.engineState == .missing)
-                        Button("Chiedi alla chat") {
-                            model.showsChat = true
-                            Task { await model.attach(document) }
+                    .background(Tema.bg)
+                } else {
+                    FlatList {
+                        ForEach(documents) { document in
+                            DocumentRow(document: document)
+                                .flatRow()
+                                .onTapGesture { model.documentsPath.append(.document(document.id)) }
+                                .contextMenu {
+                                    Button("Anonimizza di nuovo") { Task { await model.anonymizeDocument(document.id) } }
+                                        .disabled(model.engineState == .missing)
+                                    Button("Chiedi alla chat") {
+                                        model.showsChat = true
+                                        Task { await model.attach(document) }
+                                    }
+                                    Divider()
+                                    Button("Elimina", role: .destructive) { Task { await model.deleteDocument(document.id) } }
+                                }
                         }
-                        Divider()
-                        Button("Elimina", role: .destructive) { Task { await model.deleteDocument(document.id) } }
                     }
-                }
-                .searchable(text: $search, prompt: "Cerca nei titoli")
-                .safeAreaInset(edge: .bottom) {
-                    HStack {
-                        Text("Trascina qui altri file: si anonimizzano subito").font(.caption).foregroundStyle(.secondary)
+                    BottomBar {
+                        Text("Trascina qui altri file: si anonimizzano subito").font(Tema.caption).foregroundStyle(Tema.secondary)
                         Spacer()
-                        Button("Aggiungi documenti…", systemImage: "doc.badge.plus") { Task { await model.chooseDocuments(for: nil) } }
+                        Button { Task { await model.chooseDocuments(for: nil) } } label: {
+                            Label("Aggiungi documenti…", systemImage: "doc.badge.plus")
+                        }
+                        .buttonStyle(.flat)
                     }
-                    .padding(10)
-                    .background(.bar)
                 }
             }
+            .dropDestination(for: URL.self) { urls, _ in
+                Task { await model.addDocuments(urls, to: nil) }
+                return true
+            } isTargeted: { isTargeted = $0 }
+            .overlay { if isTargeted { DropOutline(inset: 8, radius: 12) } }
         }
-        .navigationTitle("Documenti")
-        .navigationSubtitle(model.currentProject?.name ?? "")
-        .toolbar {
-            Button("Aggiungi documenti…", systemImage: "doc.badge.plus") { Task { await model.chooseDocuments(for: nil) } }
-                .disabled(!model.isVaultReady)
-                .help("Aggiungi file al progetto: si anonimizzano subito")
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-            Task { await model.addDocuments(urls, to: nil) }
-            return true
-        } isTargeted: { isTargeted = $0 }
-        .overlay {
-            if isTargeted {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [7]))
-                    .padding(8)
-                    .allowsHitTesting(false)
-            }
-        }
+        .navigationBarBackButtonHidden(true)
     }
 }

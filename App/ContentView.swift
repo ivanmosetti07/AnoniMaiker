@@ -4,32 +4,37 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(AppSheets.self) private var sheets
     @AppStorage("chat.larghezza") private var chatWidth = 380.0
 
     var body: some View {
         @Bindable var model = model
-        // La chat è una colonna fatta a mano accanto a tutta la vista divisa, non un `.inspector`: accanto ad alcune
-        // schermate la colonna di AppKit entrava in un ciclo di layout che chiudeva l'app. Sta fuori dalla vista divisa
-        // perché un documento aperto (navigazione) prende tutta la colonna del contenuto. Le larghezze sono date a
-        // mano: la chat ha la sua e il resto prende quello che avanza.
+        @Bindable var sheets = sheets
+        // La chat è una colonna fatta a mano accanto a tutto il resto, non un `.inspector`: accanto ad alcune
+        // schermate la colonna di AppKit entrava in un ciclo di layout che chiudeva l'app. Le larghezze sono date a
+        // mano: la barra laterale e la chat hanno la loro e il contenuto prende quello che avanza.
         GeometryReader { proxy in
             let chat = chatSpace
             HStack(spacing: 0) {
-                NavigationSplitView {
-                    Sidebar()
-                        .navigationSplitViewColumnWidth(min: 220, ideal: 240)
-                } detail: {
-                    VStack(spacing: 0) {
-                        DataBanner()
-                        if model.hasProject {
-                            detail
-                        } else {
-                            ProjectsView()
+                Sidebar()
+                    .frame(width: Sidebar.width)
+                Rectangle().fill(Tema.border).frame(width: 1)
+                VStack(spacing: 0) {
+                    DataBanner()
+                    ZStack(alignment: .topTrailing) {
+                        Group {
+                            if model.hasProject {
+                                detail
+                            } else {
+                                ProjectsView()
+                            }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if model.hasProject { chatToggle }
                     }
-                    .sheet(isPresented: Bindable(model.updates).isPresented) { UpdateSheet() }
                 }
-                .frame(width: max(proxy.size.width - chat, 0))
+                .frame(width: max(proxy.size.width - chat - Sidebar.width - 1, 0))
+                .background(Tema.bg)
                 if chat > 0 {
                     ChatColumn(width: $chatWidth)
                         .frame(width: chat)
@@ -37,25 +42,23 @@ struct ContentView: View {
                 }
             }
         }
-        // Con la chat aperta la finestra si allarga: la vista divisa non scende mai sotto il suo minimo.
+        .ignoresSafeArea()
+        .background(Tema.bg)
+        // Le azioni stanno nelle barre delle viste: la barra della finestra non serve.
+        .toolbar(.hidden, for: .windowToolbar)
+        // Con la chat aperta la finestra si allarga: il contenuto non scende mai sotto il suo minimo.
         .frame(minWidth: 880 + chatSpace)
         .animation(.easeOut(duration: 0.2), value: model.showsChat)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(model.showsChat ? "Nascondi la chat" : "Chat con GPT", systemImage: "bubble.left.and.text.bubble.right") {
-                    model.showsChat.toggle()
-                }
-                .keyboardShortcut("j")
-                .disabled(!model.hasProject)
-                .help("Chat con GPT sui documenti del progetto (⌘J)")
-            }
-        }
         .alert("Attenzione", isPresented: Binding(get: { model.alert != nil }, set: { if !$0 { model.alert = nil } })) {
             Button("OK") {}
         } message: {
             Text(model.alert ?? "")
         }
         .sheet(isPresented: $model.showsGuide) { GuideView() }
+        // Ogni foglio su una vista sua: troppi `.sheet` sulla stessa vista non si aprono tutti.
+        .background { Color.clear.sheet(isPresented: Bindable(model.updates).isPresented) { UpdateSheet() } }
+        .background { Color.clear.sheet(isPresented: $sheets.showsSettings) { SettingsView() } }
+        .background { Color.clear.sheet(isPresented: $sheets.showsAbout) { AboutSheet() } }
         .sheet(item: $model.backupStep) { step in
             switch step {
             case .export: BackupExportSheet()
@@ -67,11 +70,25 @@ struct ContentView: View {
     /// Lo spazio della chat a destra (0 se è chiusa).
     private var chatSpace: Double { model.showsChat && model.hasProject ? ChatColumn.clamped(chatWidth) + 1 : 0 }
 
+    /// Il pulsante della chat, sopra l'angolo in alto a destra di ogni vista (le barre gli lasciano lo spazio).
+    private var chatToggle: some View {
+        Button {
+            model.showsChat.toggle()
+        } label: {
+            BarIcon(title: model.showsChat ? "Nascondi la chat" : "Chat con GPT", symbol: "bubble.left.and.text.bubble.right")
+        }
+        .buttonStyle(.plainIcon(on: model.showsChat))
+        .keyboardShortcut("j")
+        .help("\(model.showsChat ? "Nascondi la chat" : "Chat con GPT") · Chat con GPT sui documenti del progetto (⌘J)")
+        .padding(.top, 10)
+        .padding(.trailing, 12)
+    }
+
     @ViewBuilder private var detail: some View {
         @Bindable var model = model
         switch model.section {
-        case .anonymize: WorkspaceView(space: model.anonymizeSpace)
-        case .reveal: WorkspaceView(space: model.revealSpace)
+        case .anonymize: WorkspaceView(space: model.anonymizeSpace).id("anonymize")
+        case .reveal: WorkspaceView(space: model.revealSpace).id("reveal")
         case .documents:
             NavigationStack(path: $model.documentsPath) {
                 DocumentsView()
@@ -97,9 +114,33 @@ struct ContentView: View {
     }
 }
 
+/// Il banner quando i dati cifrati non si aprono (per esempio su un Mac nuovo).
+struct DataBanner: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if case .failed(let reason) = model.vaultState {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.shield").foregroundStyle(Tema.red)
+                Text(reason).foregroundStyle(Tema.text).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Ripristina una copia…") { model.startRestore() }
+                    .buttonStyle(.flat)
+            }
+            .font(Tema.callout)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Tema.red.opacity(0.1))
+        }
+    }
+}
+
 /// La barra laterale: il progetto aperto (e il menu per cambiarlo), le sue sezioni, lo stato e le impostazioni.
 struct Sidebar: View {
     @Environment(AppModel.self) private var model
+    @Environment(AppSheets.self) private var sheets
+
+    static let width: CGFloat = 240
 
     var body: some View {
         VStack(spacing: 0) {
@@ -109,66 +150,69 @@ struct Sidebar: View {
                 .frame(height: 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 18)
-                .padding(.top, 4)
+                // Sopra restano i pulsanti della finestra (chiudi, riduci, ingrandisci).
+                .padding(.top, 40)
                 .padding(.bottom, 10)
                 .accessibilityLabel("AnoniMaiker")
             ProjectSwitcher()
                 .padding(.horizontal, 10)
                 .padding(.bottom, 6)
-            if model.hasProject {
-                List(selection: Binding<AppSection?>(get: { model.section }, set: { if let value = $0 { model.section = value } })) {
-                    Section("Lavora") {
+            ScrollView {
+                VStack(spacing: 0) {
+                    if model.hasProject {
+                        SidebarSectionHeader(title: "Lavora")
                         row(.anonymize)
                         row(.reveal)
                         row(.documents, count: model.crm.documents.count)
-                    }
-                    Section("CRM del progetto") {
+                        SidebarSectionHeader(title: "CRM del progetto")
                         row(.people, count: model.crm.contacts.count)
                         row(.companies, count: model.crm.companies.count)
                         row(.deals, count: model.crm.deals.count { $0.stage.isOpen })
                         row(.activities, count: model.crm.openTasks.count, alert: model.crm.openTasks.contains { $0.isOverdue() })
-                    }
-                    Section("Archivio") {
+                        SidebarSectionHeader(title: "Archivio")
                         row(.dictionary, count: model.vault.count)
+                    } else {
+                        Text("Apri un progetto o creane uno nuovo: dentro trovi anonimizzatore, riconvertitore, documenti e CRM.")
+                            .font(Tema.callout)
+                            .foregroundStyle(Tema.secondary)
+                            .lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 6)
                     }
                 }
-            } else {
-                List {
-                    Text("Apri un progetto o creane uno nuovo: dentro trovi anonimizzatore, riconvertitore, documenti e CRM.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .listRowSeparator(.hidden)
-                }
+                .padding(.bottom, 6)
             }
-            Divider()
+            .scrollIndicators(.never)
+            Rectangle().fill(Tema.border).frame(height: 1)
             StatusFooter()
-            SettingsLink {
+            Button {
+                sheets.showsSettings = true
+            } label: {
                 Label("Impostazioni", systemImage: "gearshape")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 5)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
+            .buttonStyle(.plainIcon)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.bottom, 10)
             .help("Impostazioni di AnoniMaiker (⌘,)")
         }
+        .background(Tema.sidebar)
     }
 
     private func row(_ section: AppSection, count: Int = 0, alert: Bool = false) -> some View {
-        Label {
-            HStack {
-                Text(section.title)
-                Spacer()
-                if count > 0 {
-                    Text("\(count)")
-                        .foregroundStyle(alert ? Color.red : Color.secondary)
-                        .fontWeight(alert ? .semibold : .regular)
-                        .monospacedDigit()
-                }
+        SidebarRow(title: section.title, symbol: section.symbol, isSelected: model.section == section) {
+            model.section = section
+        } trailing: {
+            if count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 12, weight: alert ? .semibold : .regular))
+                    .monospacedDigit()
+                    .foregroundStyle(alert ? Tema.red : Tema.secondary)
             }
-        } icon: {
-            Image(systemName: section.symbol)
         }
-        .tag(section)
     }
 }
 
@@ -176,6 +220,7 @@ struct Sidebar: View {
 struct ProjectSwitcher: View {
     @Environment(AppModel.self) private var model
     @State private var naming: ProjectNaming?
+    @State private var hovering = false
 
     var body: some View {
         Menu {
@@ -196,29 +241,34 @@ struct ProjectSwitcher: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "folder.fill")
-                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Tema.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(model.currentProject?.name ?? "Nessun progetto aperto")
-                        .fontWeight(.semibold)
+                        .font(Tema.headline)
+                        .foregroundStyle(Tema.text)
                         .lineLimit(1)
                     Text(model.hasProject ? "Progetto" : "Scegli o crea un progetto")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Tema.caption)
+                        .foregroundStyle(Tema.secondary)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Tema.secondary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(.secondary.opacity(0.10), in: .rect(cornerRadius: 8))
+            .background(Color.gray.opacity(hovering ? 0.16 : 0.10), in: .rect(cornerRadius: Tema.radius))
             .contentShape(.rect)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
+        .onHover { hovering = $0 && model.isVaultReady }
         .disabled(!model.isVaultReady)
+        .opacity(model.isVaultReady ? 1 : 0.5)
         .sheet(item: $naming) { ProjectNameSheet(naming: $0) }
     }
 }
@@ -233,7 +283,8 @@ struct StatusFooter: View {
             vaultLine
             backupLine
         }
-        .font(.caption)
+        .font(Tema.caption)
+        .labelStyle(StatusLabelStyle())
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
     }
@@ -243,18 +294,21 @@ struct StatusFooter: View {
         case .loading:
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
-                Text("Preparo il motore…").foregroundStyle(.secondary)
+                Text("Preparo il motore…").foregroundStyle(Tema.secondary)
             }
         case .ready:
-            Label("Motore pronto, sul Mac", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.secondary)
-                .symbolRenderingMode(.multicolor)
+            Label {
+                Text("Motore pronto, sul Mac").foregroundStyle(Tema.secondary)
+            } icon: {
+                Image(systemName: "checkmark.circle").foregroundStyle(Tema.green)
+            }
         case .missing:
-            Label("Motore assente", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-        case .failed:
-            Label("Motore non avviato", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+            Label("Motore assente", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(Tema.orange)
+        case .failed(let reason):
+            Label("Motore non avviato", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(Tema.orange)
+                .help(reason)
         }
     }
 
@@ -262,13 +316,15 @@ struct StatusFooter: View {
         switch model.vaultState {
         case .opening:
             Label("Apro i dati…", systemImage: "lock")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Tema.secondary)
         case .ready(let protection):
-            Label(protection == .secureEnclave ? "Dati cifrati · Secure Enclave" : "Dati cifrati", systemImage: "lock.fill")
-                .foregroundStyle(.secondary)
-        case .failed:
-            Label("Dati non aperti", systemImage: "lock.trianglebadge.exclamationmark")
-                .foregroundStyle(.red)
+            Label(protection == .secureEnclave ? "Dati cifrati · Secure Enclave" : "Dati cifrati", systemImage: "lock")
+                .foregroundStyle(Tema.secondary)
+                .help("Chiave custodita da: \(protection.description)")
+        case .failed(let reason):
+            Label("Dati non aperti", systemImage: "exclamationmark.shield")
+                .foregroundStyle(Tema.red)
+                .help(reason)
         }
     }
 
@@ -278,16 +334,26 @@ struct StatusFooter: View {
             model.startExport()
         } label: {
             if let last = model.lastBackup {
-                Label("Copia: \(Format.date(last))", systemImage: "externaldrive.badge.checkmark")
-                    .foregroundStyle(.secondary)
+                Label("Copia: \(Format.date(last))", systemImage: "externaldrive")
+                    .foregroundStyle(Tema.secondary)
             } else {
                 Label("Nessuna copia di sicurezza", systemImage: "externaldrive.badge.exclamationmark")
-                    .foregroundStyle(hasData ? Color.orange : Color.secondary)
+                    .foregroundStyle(hasData ? Tema.orange : Tema.secondary)
             }
         }
         .buttonStyle(.plain)
         .disabled(!model.isVaultReady)
         .help("Crea una copia di sicurezza protetta da password")
+    }
+}
+
+/// Icona 13 e testo a 6 punti, come le righe di stato di Windows.
+private struct StatusLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon.font(.system(size: 12)).frame(width: 14)
+            configuration.title.lineLimit(1)
+        }
     }
 }
 
@@ -300,7 +366,9 @@ private struct ChatColumn: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Divider()
+            Rectangle()
+                .fill(Tema.border)
+                .frame(width: 1)
                 .overlay {
                     Color.clear
                         .frame(width: 8)
@@ -317,7 +385,7 @@ private struct ChatColumn: View {
             ChatPanel()
                 .frame(width: Self.clamped(width))
                 .frame(maxHeight: .infinity)
-                .background(.background)
+                .background(Tema.surface)
         }
     }
 }

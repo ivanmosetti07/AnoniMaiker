@@ -20,4 +20,5 @@ xcuserdata/
 /*.txt
 /*.md
 !/README.md
+!/CLAUDE.md
 /*.anonimizzatore

@@ -4,6 +4,8 @@ import SwiftUI
 // MARK: - Le schede di modifica (fogli)
 //
 // Ogni foglio lavora su una copia: «Salva» la scrive nel CRM cifrato, «Annulla» la butta.
+// L'aspetto è quello dei fogli di Windows (`crm-editor`): titolo centrato, sezioni con il titolo fuori e un riquadro
+// grigio chiaro, righe «etichetta (150) · campo largo».
 
 /// Lo scheletro comune: titolo, modulo, Annulla e Salva.
 private struct EditorSheet<Content: View>: View {
@@ -15,31 +17,225 @@ private struct EditorSheet<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(title)
-                .font(.headline)
-                .lineLimit(1)
-                .padding(.top, 16)
-                .padding(.horizontal, 20)
-            Form { content }
-                .formStyle(.grouped)
-            Divider()
-            HStack {
-                Spacer()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                    content
+                }
+                .padding(20)
+            }
+            SheetActions {
                 Button("Annulla") { dismiss() }
+                    .buttonStyle(.flat)
                     .keyboardShortcut(.cancelAction)
+                    .help("Annulla (Esc)")
                 Button("Salva") {
                     Task {
                         await save()
                         dismiss()
                     }
                 }
+                .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canSave)
+                .help("Salva (Invio)")
             }
-            .padding(14)
         }
         .frame(width: 540)
         .frame(minHeight: 420, idealHeight: 640)
+        .background(Tema.surface)
+    }
+}
+
+/// Una sezione del modulo: titolo grigio fuori, righe in un riquadro su sfondo `bg` separate da una linea.
+private struct EditorSection<Content: View>: View {
+    var title: String?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let title {
+                Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Tema.secondary).padding(.leading, 4)
+            }
+            VStack(spacing: 0) {
+                _VariadicView.Tree(EditorRowsLayout()) { content }
+            }
+            .background(Tema.bg, in: .rect(cornerRadius: Tema.radius))
+            .overlay(RoundedRectangle(cornerRadius: Tema.radius).strokeBorder(Tema.border))
+        }
+    }
+}
+
+private struct EditorRowsLayout: _VariadicView_MultiViewRoot {
+    func body(children: _VariadicView.Children) -> some View {
+        ForEach(children) { child in
+            if child.id != children.first?.id { Rectangle().fill(Tema.border).frame(height: 1) }
+            child
+        }
+    }
+}
+
+/// Una riga: etichetta larga 150 e il campo nel resto.
+private struct EditorField<Control: View>: View {
+    let label: String
+    @ViewBuilder var control: Control
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label).font(Tema.body).foregroundStyle(Tema.text).lineLimit(1).frame(width: 150, alignment: .leading)
+            control.frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .frame(minHeight: 38)
+    }
+}
+
+/// Una riga con l'etichetta a sinistra e il controllo in fondo a destra (caselle, più e meno).
+private struct EditorTrailingRow<Control: View>: View {
+    let label: String
+    @ViewBuilder var control: Control
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label).font(Tema.body).foregroundStyle(Tema.text).lineLimit(1)
+            Spacer(minLength: 8)
+            control
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .frame(minHeight: 38)
+    }
+}
+
+private struct EditorTextField: View {
+    let label: String
+    @Binding var text: String
+    var prompt: String?
+
+    var body: some View {
+        EditorField(label: label) {
+            TextField("", text: $text, prompt: prompt.map { Text($0) }).styledField()
+        }
+    }
+}
+
+/// Il testo lungo (note), largo quanto la sezione.
+private struct EditorTextEditor: View {
+    @Binding var text: String
+    var minHeight: CGFloat = 80
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(Tema.body)
+            .scrollContentBackground(.hidden)
+            .focused($focused)
+            .lineSpacing(2)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 5)
+            .frame(minHeight: minHeight)
+            .background(Tema.surface, in: .rect(cornerRadius: Tema.radiusSmall))
+            .overlay(RoundedRectangle(cornerRadius: Tema.radiusSmall).strokeBorder(focused ? Tema.accent : Tema.border))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+    }
+}
+
+/// L'avviso di validità sotto un campo, allineato al campo.
+private struct EditorNote: View {
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .font(Tema.caption)
+            .foregroundStyle(Tema.orange)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 174)
+            .padding(.trailing, 12)
+            .padding(.vertical, 6)
+    }
+}
+
+/// «−» e «+» uniti, come lo Stepper di Windows.
+private struct EditorStepper: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let step: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { value = max(range.lowerBound, value - step) } label: { Image(systemName: "minus").frame(width: 14, height: 14) }
+                .disabled(value <= range.lowerBound)
+                .help("Meno")
+            Rectangle().fill(Tema.border).frame(width: 1, height: 20)
+            Button { value = min(range.upperBound, value + step) } label: { Image(systemName: "plus").frame(width: 14, height: 14) }
+                .disabled(value >= range.upperBound)
+                .help("Più")
+        }
+        .buttonStyle(StepperHalfStyle())
+        .background(Tema.surface, in: .rect(cornerRadius: Tema.radiusSmall))
+        .overlay(RoundedRectangle(cornerRadius: Tema.radiusSmall).strokeBorder(Tema.border))
+        .fixedSize()
+    }
+
+    private struct StepperHalfStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Tema.text)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3)
+                .background(configuration.isPressed ? Tema.selected : .clear)
+                .contentShape(.rect)
+        }
+    }
+}
+
+/// Una data in un campo largo con il bordo e l'icona del calendario: al clic si apre il calendario (come su Windows).
+private struct EditorDate: View {
+    @Binding var date: Date
+    var components: DatePickerComponents = .date
+    @State private var picking = false
+
+    private var text: String {
+        components.contains(.hourAndMinute)
+            ? date.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year().hour().minute().locale(Format.locale))
+            : date.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year().locale(Format.locale))
+    }
+
+    var body: some View {
+        Button { picking = true } label: {
+            HStack {
+                Text(text).font(Tema.body).foregroundStyle(Tema.text).monospacedDigit()
+                Spacer(minLength: 8)
+                Image(systemName: "calendar").font(.system(size: 13)).foregroundStyle(Tema.text)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(Tema.surface, in: .rect(cornerRadius: Tema.radiusSmall))
+            .overlay(RoundedRectangle(cornerRadius: Tema.radiusSmall).strokeBorder(picking ? Tema.accent : Tema.border))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $picking, arrowEdge: .bottom) {
+            VStack(spacing: 8) {
+                DatePicker("", selection: $date, displayedComponents: .date)
+                    .labelsHidden()
+                    .datePickerStyle(.graphical)
+                if components.contains(.hourAndMinute) {
+                    DatePicker("Ora", selection: $date, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.field)
+                }
+            }
+            .tint(Tema.accent)
+            .environment(\.locale, Format.locale)
+            .padding(12)
+        }
     }
 }
 
@@ -51,11 +247,11 @@ struct CompanyPicker: View {
     var allowsNone = true
 
     var body: some View {
-        Picker(title, selection: $selection) {
-            if allowsNone { Text("Nessuna").tag(UUID?.none) }
-            ForEach(model.companyChoices) { company in
-                Text(company.name).tag(Optional(company.id))
-            }
+        EditorField(label: title) {
+            FieldMenu(selection: $selection,
+                      options: (allowsNone ? [(value: UUID?.none, title: "Nessuna")] : [])
+                          + model.companyChoices.map { (value: Optional($0.id), title: $0.name) },
+                      fill: true)
         }
     }
 }
@@ -68,40 +264,41 @@ struct CompanyEditor: View {
         EditorSheet(title: company.name.isEmpty ? "Nuova azienda" : company.name,
                     canSave: !company.name.trimmingCharacters(in: .whitespaces).isEmpty,
                     save: { await model.save(company) }) {
-            Section("Azienda") {
-                TextField("Ragione sociale", text: $company.name, prompt: Text("Edilnord S.r.l."))
-                Picker("Stato", selection: $company.status) {
-                    ForEach(CompanyStatus.allCases) { Text($0.title).tag($0) }
+            EditorSection(title: "Azienda") {
+                EditorTextField(label: "Ragione sociale", text: $company.name, prompt: "Edilnord S.r.l.")
+                EditorField(label: "Stato") {
+                    FieldMenu(selection: $company.status, options: CompanyStatus.allCases.map { (value: $0, title: $0.title) }, fill: true)
                 }
-                TextField("Settore", text: $company.sector)
+                EditorTextField(label: "Settore", text: $company.sector)
             }
-            Section {
-                TextField("Partita IVA", text: $company.vatNumber)
-                ValidityNote(value: company.vatNumber, isValid: Validators.isValidVATNumber,
-                             message: "La cifra di controllo della partita IVA non torna")
-                TextField("Codice fiscale", text: $company.taxCode)
-                ValidityNote(value: company.taxCode, isValid: Validators.isValidTaxCode,
-                             message: "Il codice fiscale non sembra valido")
-                TextField("IBAN", text: $company.iban)
-                ValidityNote(value: company.iban, isValid: Validators.isValidIBAN, message: "Il codice di controllo dell'IBAN non torna")
-            } header: {
-                Text("Dati fiscali")
+            EditorSection(title: "Dati fiscali") {
+                EditorTextField(label: "Partita IVA", text: $company.vatNumber)
+                if ValidityNote.shows(company.vatNumber, Validators.isValidVATNumber) {
+                    EditorNote(message: "La cifra di controllo della partita IVA non torna")
+                }
+                EditorTextField(label: "Codice fiscale", text: $company.taxCode)
+                if ValidityNote.shows(company.taxCode, Validators.isValidTaxCode) {
+                    EditorNote(message: "Il codice fiscale non sembra valido")
+                }
+                EditorTextField(label: "IBAN", text: $company.iban)
+                if ValidityNote.shows(company.iban, Validators.isValidIBAN) {
+                    EditorNote(message: "Il codice di controllo dell'IBAN non torna")
+                }
             }
-            Section("Recapiti") {
-                TextField("Email", text: $company.email)
-                TextField("PEC", text: $company.pec)
-                TextField("Telefono", text: $company.phone)
-                TextField("Sito web", text: $company.website)
+            EditorSection(title: "Recapiti") {
+                EditorTextField(label: "Email", text: $company.email)
+                EditorTextField(label: "PEC", text: $company.pec)
+                EditorTextField(label: "Telefono", text: $company.phone)
+                EditorTextField(label: "Sito web", text: $company.website)
             }
-            Section("Sede") {
-                TextField("Via e numero civico", text: $company.street)
-                TextField("CAP", text: $company.zipCode)
-                TextField("Città", text: $company.city)
-                TextField("Provincia", text: $company.province, prompt: Text("MI"))
+            EditorSection(title: "Sede") {
+                EditorTextField(label: "Via e numero civico", text: $company.street)
+                EditorTextField(label: "CAP", text: $company.zipCode)
+                EditorTextField(label: "Città", text: $company.city)
+                EditorTextField(label: "Provincia", text: $company.province, prompt: "MI")
             }
-            Section("Note") {
-                TextEditor(text: $company.notes)
-                    .frame(minHeight: 80)
+            EditorSection(title: "Note") {
+                EditorTextEditor(text: $company.notes, minHeight: 80)
             }
         }
     }
@@ -115,25 +312,28 @@ struct ContactEditor: View {
         EditorSheet(title: contact.fullName.isEmpty ? "Nuovo contatto" : contact.fullName,
                     canSave: !contact.fullName.isEmpty,
                     save: { await model.save(contact) }) {
-            Section("Persona") {
-                TextField("Nome", text: $contact.firstName)
-                TextField("Cognome", text: $contact.lastName)
-                TextField("Ruolo", text: $contact.role, prompt: Text("Direttore acquisti"))
+            EditorSection(title: "Persona") {
+                EditorTextField(label: "Nome", text: $contact.firstName)
+                EditorTextField(label: "Cognome", text: $contact.lastName)
+                EditorTextField(label: "Ruolo", text: $contact.role, prompt: "Direttore acquisti")
                 CompanyPicker(title: "Azienda", selection: $contact.companyID)
             }
-            Section("Recapiti") {
-                TextField("Email", text: $contact.email)
-                ValidityNote(value: contact.email, isValid: Validators.isValidEmail, message: "L'indirizzo email non sembra valido")
-                TextField("Telefono", text: $contact.phone)
-                TextField("Cellulare", text: $contact.mobile)
+            EditorSection(title: "Recapiti") {
+                EditorTextField(label: "Email", text: $contact.email)
+                if ValidityNote.shows(contact.email, Validators.isValidEmail) {
+                    EditorNote(message: "L'indirizzo email non sembra valido")
+                }
+                EditorTextField(label: "Telefono", text: $contact.phone)
+                EditorTextField(label: "Cellulare", text: $contact.mobile)
             }
-            Section("Dati personali") {
-                TextField("Codice fiscale", text: $contact.taxCode)
-                ValidityNote(value: contact.taxCode, isValid: Validators.isValidTaxCode, message: "Il codice fiscale non sembra valido")
+            EditorSection(title: "Dati personali") {
+                EditorTextField(label: "Codice fiscale", text: $contact.taxCode)
+                if ValidityNote.shows(contact.taxCode, Validators.isValidTaxCode) {
+                    EditorNote(message: "Il codice fiscale non sembra valido")
+                }
             }
-            Section("Note") {
-                TextEditor(text: $contact.notes)
-                    .frame(minHeight: 70)
+            EditorSection(title: "Note") {
+                EditorTextEditor(text: $contact.notes, minHeight: 70)
             }
         }
     }
@@ -160,35 +360,49 @@ struct DealEditor: View {
         Binding(get: { deal.companyID }, set: { deal.companyID = $0; deal.contactID = nil })
     }
 
+    private var contacts: [Contact] {
+        deal.companyID.map { model.crm.contacts(of: $0) } ?? model.crm.contacts.sorted { $0.fullName < $1.fullName }
+    }
+
     var body: some View {
         EditorSheet(title: deal.title.isEmpty ? "Nuova trattativa" : deal.title,
                     canSave: !deal.title.trimmingCharacters(in: .whitespaces).isEmpty,
                     save: { await model.save(deal) }) {
-            Section("Trattativa") {
-                TextField("Titolo", text: $deal.title, prompt: Text("Nuovo sito web"))
+            EditorSection(title: "Trattativa") {
+                EditorTextField(label: "Titolo", text: $deal.title, prompt: "Nuovo sito web")
                 CompanyPicker(title: "Azienda", selection: company)
-                Picker("Referente", selection: $deal.contactID) {
-                    Text("Nessuno").tag(UUID?.none)
-                    ForEach(deal.companyID.map { model.crm.contacts(of: $0) } ?? model.crm.contacts.sorted { $0.fullName < $1.fullName }) { contact in
-                        Text(contact.fullName).tag(Optional(contact.id))
+                EditorField(label: "Referente") {
+                    FieldMenu(selection: $deal.contactID,
+                              options: [(value: UUID?.none, title: "Nessuno")] + contacts.map { (value: Optional($0.id), title: $0.fullName) },
+                              fill: true)
+                }
+            }
+            EditorSection(title: "Andamento") {
+                EditorField(label: "Fase") {
+                    FieldMenu(selection: $deal.stage, options: DealStage.allCases.map { (value: $0, title: $0.title) }, fill: true)
+                }
+                EditorField(label: "Importo") {
+                    HStack(spacing: 6) {
+                        TextField("", value: amount, format: .number.precision(.fractionLength(2)).locale(Format.locale), prompt: Text("0,00"))
+                            .multilineTextAlignment(.trailing)
+                            .monospacedDigit()
+                            .styledField()
+                        Text("€").font(Tema.body).foregroundStyle(Tema.secondary)
                     }
                 }
-            }
-            Section("Andamento") {
-                Picker("Fase", selection: $deal.stage) {
-                    ForEach(DealStage.allCases) { Text($0.title).tag($0) }
+                EditorTrailingRow(label: "Probabilità: \(deal.probability)%") {
+                    EditorStepper(value: $deal.probability, range: 0...100, step: 5)
                 }
-                .onChange(of: deal.stage) { _, stage in deal.probability = stage.defaultProbability }
-                TextField("Importo", value: amount, format: .currency(code: "EUR").locale(Format.locale))
-                Stepper("Probabilità: \(deal.probability)%", value: $deal.probability, in: 0...100, step: 5)
-                Toggle("Data di chiusura prevista", isOn: hasClose)
+                EditorTrailingRow(label: "Data di chiusura prevista") {
+                    AccentCheckbox(isOn: hasClose)
+                }
                 if deal.expectedClose != nil {
-                    DatePicker("Chiusura prevista", selection: close, displayedComponents: .date)
+                    EditorField(label: "Chiusura prevista") { EditorDate(date: close) }
                 }
             }
-            Section("Note") {
-                TextEditor(text: $deal.notes)
-                    .frame(minHeight: 70)
+            .onChange(of: deal.stage) { _, stage in deal.probability = stage.defaultProbability }
+            EditorSection(title: "Note") {
+                EditorTextEditor(text: $deal.notes, minHeight: 70)
             }
         }
     }
@@ -210,31 +424,34 @@ struct ActivityEditor: View {
     var body: some View {
         EditorSheet(title: activity.kind.title, canSave: !activity.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     save: { await model.save(activity) }) {
-            Section {
-                Picker("Tipo", selection: $activity.kind) {
-                    ForEach(ActivityKind.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+            EditorSection {
+                EditorField(label: "Tipo") {
+                    FieldMenu(selection: $activity.kind, options: ActivityKind.allCases.map { (value: $0, title: $0.title) }, fill: true)
                 }
-                TextEditor(text: $activity.text)
-                    .frame(minHeight: 110)
-                DatePicker("Data", selection: $activity.date)
+                EditorTextEditor(text: $activity.text, minHeight: 110)
+                EditorField(label: "Data") { EditorDate(date: $activity.date, components: [.date, .hourAndMinute]) }
                 if activity.kind == .task {
-                    Toggle("Scadenza", isOn: hasDue)
+                    EditorTrailingRow(label: "Scadenza") { AccentCheckbox(isOn: hasDue) }
                     if activity.due != nil {
-                        DatePicker("Entro il", selection: due, displayedComponents: .date)
+                        EditorField(label: "Entro il") { EditorDate(date: due) }
                     }
-                    Toggle("Fatta", isOn: $activity.isDone)
+                    EditorTrailingRow(label: "Fatta") { AccentCheckbox(isOn: $activity.isDone) }
                 }
             }
-            Section("Collegamenti") {
+            EditorSection(title: "Collegamenti") {
                 CompanyPicker(title: "Azienda", selection: $activity.companyID)
                 if let companyID = activity.companyID {
-                    Picker("Contatto", selection: $activity.contactID) {
-                        Text("Nessuno").tag(UUID?.none)
-                        ForEach(model.crm.contacts(of: companyID)) { Text($0.fullName).tag(Optional($0.id)) }
+                    EditorField(label: "Contatto") {
+                        FieldMenu(selection: $activity.contactID,
+                                  options: [(value: UUID?.none, title: "Nessuno")]
+                                      + model.crm.contacts(of: companyID).map { (value: Optional($0.id), title: $0.fullName) },
+                                  fill: true)
                     }
-                    Picker("Trattativa", selection: $activity.dealID) {
-                        Text("Nessuna").tag(UUID?.none)
-                        ForEach(model.crm.deals(of: companyID)) { Text($0.title).tag(Optional($0.id)) }
+                    EditorField(label: "Trattativa") {
+                        FieldMenu(selection: $activity.dealID,
+                                  options: [(value: UUID?.none, title: "Nessuna")]
+                                      + model.crm.deals(of: companyID).map { (value: Optional($0.id), title: $0.title) },
+                                  fill: true)
                     }
                 }
             }

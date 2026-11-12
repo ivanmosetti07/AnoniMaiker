@@ -4,6 +4,7 @@ import SwiftUI
 /// Il proprio account ChatGPT: collegato o no, e il pulsante per collegarlo (o scollegarlo) senza usare il Terminale.
 struct ChatGPTConnectView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
     @State private var confirmsDisconnect = false
     /// Nella chat: solo quando manca il collegamento, in una riga.
     var compact = false
@@ -18,15 +19,16 @@ struct ChatGPTConnectView: View {
                 case nil:
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("Controllo il collegamento a ChatGPT…").foregroundStyle(.secondary)
+                        Text("Controllo il collegamento a ChatGPT…").foregroundStyle(Tema.secondary)
                     }
                 case .ready:
                     HStack {
-                        Label("Collegato al tuo account ChatGPT", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                        Label("Collegato al tuo account ChatGPT", systemImage: "checkmark.circle")
+                            .foregroundStyle(Tema.green)
                         Spacer()
                         if !compact {
                             Button("Scollega…") { confirmsDisconnect = true }
+                                .buttonStyle(.flat)
                         }
                     }
                 case .notInstalled, .notLoggedIn:
@@ -34,12 +36,16 @@ struct ChatGPTConnectView: View {
                 }
             }
             if let error = chat.connectionError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(error)
+                }
+                    .foregroundStyle(Tema.orange)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .font(Tema.body)
         .task { if model.chat.codexStatus == nil { await model.refreshCodexStatus() } }
         .confirmationDialog("Scollegare il tuo account ChatGPT?", isPresented: $confirmsDisconnect) {
             Button("Scollega", role: .destructive) { Task { await model.disconnectChatGPT() } }
@@ -52,22 +58,24 @@ struct ChatGPTConnectView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(compact ? "Collega il tuo account ChatGPT per usare la chat" : "Nessun account ChatGPT collegato")
-                    .fontWeight(.semibold)
+                    .font(Tema.headline)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Serve un tuo abbonamento ChatGPT. L'accesso si fa sul sito di OpenAI: l'app non vede la tua password.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .font(Tema.callout)
+                    .foregroundStyle(Tema.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
             Button("Collega il tuo account ChatGPT") { model.connectChatGPT() }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.primary)
+                .fixedSize()
                 .disabled(!model.isVaultReady)
         }
     }
 
     @ViewBuilder private func progress(_ connection: ChatGPTConnection) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            ProgressView().controlSize(.small)
+            ProgressView().controlSize(.mini)
             VStack(alignment: .leading, spacing: 4) {
                 switch connection {
                 case .installing:
@@ -75,13 +83,15 @@ struct ChatGPTConnectView: View {
                 case .waitingForBrowser(let url):
                     Text("Si è aperto il browser: accedi con il tuo account ChatGPT e conferma.")
                     if let url {
-                        Link("Il browser non si è aperto? Apri la pagina di accesso", destination: url)
-                            .font(.callout)
+                        Button("Il browser non si è aperto? Apri la pagina di accesso") { openURL(url) }
+                            .buttonStyle(.accentLink)
+                            .font(Tema.callout)
                     }
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             Button("Annulla") { model.cancelChatGPTConnection() }
+                .buttonStyle(.flat)
         }
     }
 }

@@ -37,34 +37,47 @@ struct GuideView: View {
             .id(page)
             .transaction { $0.animation = nil }
 
-            Divider()
-            HStack {
-                Button("Salta la guida") { close() }
-                    .buttonStyle(.link)
-                    .opacity(page == Self.pages - 1 ? 0 : 1)
-                Spacer()
+            // In fondo: salta, i puntini delle pagine, indietro e avanti (come su Windows).
+            HStack(spacing: 8) {
+                HStack {
+                    Button("Salta la guida") { close() }
+                        .buttonStyle(.accentLink)
+                        .opacity(page == Self.pages - 1 ? 0 : 1)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
                 HStack(spacing: 6) {
                     ForEach(0..<Self.pages, id: \.self) { index in
                         Circle()
-                            .fill(index == page ? Color.accentColor : Color.secondary.opacity(0.3))
+                            .fill(index == page ? Tema.accent : Color.gray.opacity(0.3))
                             .frame(width: 7, height: 7)
                     }
                 }
-                Spacer()
-                if page > 0 {
-                    Button("Indietro") { page -= 1 }
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    if page > 0 {
+                        Button("Indietro") { page -= 1 }.buttonStyle(.flat)
+                    }
+                    if page < Self.pages - 1 {
+                        Button("Avanti") { page += 1 }
+                            .buttonStyle(.primary)
+                            .keyboardShortcut(.defaultAction)
+                    } else {
+                        Button("Inizia") { close() }
+                            .buttonStyle(.primary)
+                            .keyboardShortcut(.defaultAction)
+                    }
                 }
-                if page < Self.pages - 1 {
-                    Button("Avanti") { page += 1 }
-                        .keyboardShortcut(.defaultAction)
-                } else {
-                    Button("Inizia") { close() }
-                        .keyboardShortcut(.defaultAction)
-                }
+                .frame(maxWidth: .infinity)
             }
-            .padding(16)
+            .font(Tema.body)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Tema.bar)
+            .overlay(alignment: .top) { Rectangle().fill(Tema.border).frame(height: 1) }
         }
         .frame(width: 640, height: 520)
+        .background(Tema.surface)
     }
 
     private func close(then action: GuideAction? = nil) {
@@ -87,9 +100,11 @@ struct GuideView: View {
                 .frame(height: 30)
                 .accessibilityLabel("AnoniMaiker")
             Text("Usa l'intelligenza artificiale sui documenti dei tuoi clienti senza darle i dati veri.")
-                .font(.title3)
+                .font(.system(size: 16))
+                .lineSpacing(4)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Tema.secondary)
+                .frame(maxWidth: 520)
             flow
                 .padding(.top, 10)
             MaikerHubSignature()
@@ -100,31 +115,32 @@ struct GuideView: View {
     /// Dati veri → segnaposto → AI → dati veri.
     private var flow: some View {
         HStack(spacing: 10) {
-            step("Mario Rossi\nIBAN IT60…", caption: "Il tuo testo", color: .secondary)
+            step("Mario Rossi\nIBAN IT60…", caption: "Il tuo testo", color: Tema.gray)
             arrow
-            step("[FULLNAME_1]\nIBAN [IBAN_1]", caption: "Cosa vede l'AI", color: .orange)
+            step("[FULLNAME_1]\nIBAN [IBAN_1]", caption: "Cosa vede l'AI", color: Tema.orange)
             arrow
-            step("Gentile\nMario Rossi…", caption: "La risposta", color: .green)
+            step("Gentile\nMario Rossi…", caption: "La risposta", color: Tema.green)
         }
     }
 
     private func step(_ text: String, caption: String, color: Color) -> some View {
         VStack(spacing: 6) {
             Text(text)
-                .font(.callout.monospaced())
+                .font(Tema.mono)
+                .foregroundStyle(Tema.text)
                 .multilineTextAlignment(.center)
                 .frame(width: 150, height: 58)
-                .background(color.opacity(0.12), in: .rect(cornerRadius: 8))
-            Text(caption).font(.caption).foregroundStyle(.secondary)
+                .background(color.opacity(0.12), in: .rect(cornerRadius: Tema.radius))
+            Text(caption).font(Tema.caption).foregroundStyle(Tema.secondary)
         }
     }
 
     private var arrow: some View {
-        Image(systemName: "arrow.right").foregroundStyle(.tertiary).padding(.bottom, 20)
+        Image(systemName: "arrow.right").foregroundStyle(Tema.tertiary).padding(.bottom, 20)
     }
 
     private var privacy: some View {
-        page(title: "Tutto resta sul tuo Mac", symbol: "lock.shield") {
+        page(title: "Tutto resta sul tuo Mac", symbol: "checkmark.shield") {
             point("cpu", "Il motore di anonimizzazione è dentro l'app", "Riconosce nomi, aziende, codici fiscali, IBAN, email, telefoni, indirizzi, documenti e targhe senza mandare niente in rete.")
             point("character.book.closed", "Un dizionario cifrato", "Ogni dato ha sempre lo stesso segnaposto, così qualsiasi file anonimizzato si riconverte. Il dizionario è cifrato con una chiave protetta dalla Secure Enclave del Mac.")
             point("eye.slash", "Tu decidi cosa nascondere", "Di serie: dati personali e aziende. Importi, date e città restano in chiaro perché servono all'AI. Si cambia in Impostazioni › Cosa nascondere.")
@@ -132,12 +148,12 @@ struct GuideView: View {
     }
 
     private var backup: some View {
-        page(title: "Prima di tutto: la copia di sicurezza", symbol: "externaldrive.badge.checkmark") {
+        page(title: "Prima di tutto: la copia di sicurezza", symbol: "externaldrive") {
             point("exclamationmark.triangle", "Senza copia, su un Mac nuovo i dati non si riaprono", "La chiave dei dati è legata a questo Mac. Se lo cambi, lo resetti o si rompe, dizionario, clienti e chat si recuperano solo da una copia di sicurezza.")
             point("key", "Protetta da una password che scegli tu", "Almeno 10 caratteri. Conservala bene: senza password la copia non si apre, nemmeno per noi.")
             point("clock.arrow.circlepath", "Rifalla ogni tanto", "Da File › Crea copia di sicurezza… (⇧⌘B). In basso a sinistra vedi la data dell'ultima.")
             Button("Crea la copia di sicurezza") { close(then: .backup) }
-                .controlSize(.large)
+                .buttonStyle(.flatLarge)
                 .disabled(!model.isVaultReady)
                 .padding(.top, 4)
         }
@@ -149,18 +165,18 @@ struct GuideView: View {
             point("person.2", "Il CRM si riempie da solo", "Le persone e le aziende trovate nei documenti del progetto entrano nel suo CRM, con email e telefoni della stessa riga. Trattative e attività le aggiungi tu.")
             point("character.book.closed", "Ogni progetto ha il suo dizionario", "I segnaposto di un progetto valgono solo lì: un file si riconverte dentro il progetto da cui viene.")
             Button("Crea il primo progetto") { close(then: .createProject) }
-                .controlSize(.large)
+                .buttonStyle(.flatLarge)
                 .padding(.top, 4)
         }
     }
 
     private var anonymize: some View {
         page(title: "Anonimizzare e riconvertire", symbol: "arrow.left.arrow.right") {
-            point("1.circle", "Anonimizza", "Nel progetto, incolla un testo o trascina un file (Testo, Markdown, CSV, Excel, Word, PDF) nel banco «Anonimizza»: il file entra da solo nei documenti del progetto.")
-            point("2.circle", "Usa l'AI che preferisci", "Copia o salva il risultato con i segnaposto e dallo a ChatGPT, Claude o altri. Formattazione e celle restano come nell'originale.")
-            point("3.circle", "Riconverti", "Incolla la risposta (o il file che ti restituisce) nel banco «Riconverti»: i segnaposto tornano i dati veri.")
+            point("1", "Anonimizza", "Nel progetto, incolla un testo o trascina un file (Testo, Markdown, CSV, Excel, Word, PDF) nel banco «Anonimizza»: il file entra da solo nei documenti del progetto.")
+            point("2", "Usa l'AI che preferisci", "Copia o salva il risultato con i segnaposto e dallo a ChatGPT, Claude o altri. Formattazione e celle restano come nell'originale.")
+            point("3", "Riconverti", "Incolla la risposta (o il file che ti restituisce) nel banco «Riconverti»: i segnaposto tornano i dati veri.")
             Button("Prova adesso") { close(then: .anonymize) }
-                .controlSize(.large)
+                .buttonStyle(.flatLarge)
                 .padding(.top, 4)
         }
     }
@@ -172,7 +188,7 @@ struct GuideView: View {
             ChatGPTConnectView()
                 .padding(.leading, 40)
             Button("Apri la chat") { close(then: .chat) }
-                .controlSize(.large)
+                .buttonStyle(.flatLarge)
                 .padding(.top, 4)
         }
     }
@@ -190,23 +206,31 @@ struct GuideView: View {
 
     private func page<Content: View>(title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label(title, systemImage: symbol)
-                .font(.title2)
-                .fontWeight(.semibold)
-                .labelStyle(.titleAndIcon)
+            SheetTitle(title: title, symbol: symbol)
             content()
         }
+        .font(Tema.body)
+        .foregroundStyle(Tema.text)
     }
 
     private func point(_ symbol: String, _ title: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol)
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 28)
+            Group {
+                // Un numero: nel cerchio arancione, come i passi su Windows.
+                if symbol.count == 1 {
+                    Text(symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 20, height: 20)
+                        .overlay(Circle().strokeBorder(Tema.accent, lineWidth: 1.6))
+                } else {
+                    Image(systemName: symbol).font(.system(size: 17))
+                }
+            }
+            .foregroundStyle(Tema.accent)
+            .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).fontWeight(.semibold)
-                Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(title).font(Tema.headline)
+                Text(text).foregroundStyle(Tema.secondary).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -249,8 +273,8 @@ struct MaikerHubSignature: View {
     var body: some View {
         HStack(spacing: 6) {
             Text("Un prodotto")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(Tema.caption)
+                .foregroundStyle(Tema.secondary)
             Image("MaikerHub")
                 .resizable()
                 .scaledToFit()
