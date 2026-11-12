@@ -1,0 +1,85 @@
+/* La cornice dell'app e le viste fuori dal CRM e dalla chat (si aggiunge a styles.css, senza cambiarlo). */
+
+/* Barra laterale */
+.sidebar-logo { padding: 14px 18px 10px; display: flex; }
+.sidebar-logo img { height: 12px; }
+.sidebar-list { flex: 1; overflow: auto; min-height: 0; padding-bottom: 6px; }
+.sidebar-note { padding: 6px 18px; font-size: 12px; color: var(--secondary); line-height: 1.45; }
+.switcher-wrap { width: calc(100% - 20px); margin: 0 10px 6px; flex-shrink: 0; }
+.project-switcher {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius);
+  background: rgba(128, 128, 128, 0.1); cursor: default; width: 100%;
+}
+.project-switcher:hover { background: rgba(128, 128, 128, 0.16); }
+.project-switcher.disabled { opacity: 0.5; pointer-events: none; }
+.status-footer { display: flex; flex-direction: column; gap: 6px; padding: 12px; font-size: 11px; }
+.status-footer .label { color: var(--secondary); }
+.status-footer button.plainlink { all: unset; display: inline-flex; min-width: 0; cursor: default; }
+.status-footer button.plainlink:disabled { opacity: 0.5; }
+.settings-link { margin: 0 4px 10px; }
+
+/* Il contenuto e la chat a destra */
+.detail { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.detail .toolbar { padding-right: 56px; }
+.detail .toolbar .titles { min-width: 90px; }
+.chat-toggle { position: absolute; top: 9px; right: 12px; z-index: 5; }
+.chat-toggle .btn.on { background: var(--accent-soft); border-color: transparent; color: var(--accent-strong); }
+.chat-column { display: flex; flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border); position: relative; }
+.chat-column > .chat-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-resizer { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 10; }
+
+/* Banco di lavoro */
+.panes { flex: 1; min-height: 0; display: flex; }
+.pane { flex: 1; min-width: 200px; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.pane-title { display: flex; align-items: baseline; gap: 8px; padding: 8px 14px; min-height: 36px; }
+.pane-title .headline { flex-shrink: 0; }
+.pane-body { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; background: var(--surface); }
+.pane-body.drop { outline: 2px dashed var(--accent); outline-offset: -6px; }
+.pane-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--secondary); pointer-events: none; text-align: center; padding: 20px; }
+.pane-empty svg { color: var(--secondary); }
+
+/* Progetti */
+.projects { flex: 1; overflow: auto; padding: 28px; }
+.projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.project-card {
+  display: flex; flex-direction: column; gap: 10px; min-height: 110px; padding: 16px; border-radius: 12px;
+  background: rgba(128, 128, 128, 0.08); border: 1px solid transparent; cursor: default; text-align: left;
+}
+.project-card:hover { background: rgba(128, 128, 128, 0.13); border-color: var(--border); }
+.project-card .name { font-weight: 600; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.large-title { font-size: 26px; font-weight: 600; }
+
+/* Moduli raggruppati (Impostazioni) */
+.form-section { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.form-section-header { font-size: 12px; font-weight: 600; color: var(--secondary); padding: 0 4px; }
+.form-section-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.form-section-footer { font-size: 11px; color: var(--secondary); padding: 0 4px; line-height: 1.45; }
+.form-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 38px; }
+.form-row + .form-row { border-top: 1px solid var(--border); }
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; width: 100%; }
+
+/* Impostazioni */
+.settings { display: flex; height: 560px; margin: -20px; }
+.settings-nav { width: 210px; flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--border); padding: 14px 0; display: flex; flex-direction: column; }
+.settings-nav .title2 { padding: 0 18px 10px; }
+.settings-page { flex: 1; min-width: 0; overflow: auto; padding: 20px 22px; background: var(--bg); }
+
+/* Guida */
+.guide { display: flex; flex-direction: column; height: 520px; margin: -20px; }
+.guide-page { flex: 1; min-height: 0; overflow: auto; padding: 30px 36px 12px; }
+.guide-footer { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--border); background: var(--bar); border-radius: 0 0 10px 10px; }
+.guide-dots { display: flex; gap: 6px; }
+.guide-dots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(128, 128, 128, 0.3); }
+.guide-dots span.on { background: var(--accent); }
+.guide-step { width: 150px; height: 58px; border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; font-family: var(--mono); font-size: 12px; white-space: pre-line; }
+.btn.large { padding: 7px 16px; font-size: 13px; }
+
+/* Dizionario */
+.dictionary { flex: 1; min-height: 0; overflow: auto; }
+.dictionary table.grid th { cursor: default; white-space: nowrap; }
+.dictionary table.grid th.sortable:hover { color: var(--text); }
+.dictionary table.grid td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.footerbar { display: flex; align-items: center; gap: 8px; padding: 9px 14px; min-height: 36px; background: var(--bar); border-top: 1px solid var(--border); font-size: 12px; color: var(--secondary); }
+
+/* Informazioni */
+.about { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 6px 10px 2px; }

@@ -1,0 +1,5 @@
+node_modules/
+out/
+dist/
+# Motore ONNX (centinaia di MB): si prepara con npm run motore
+/engine/

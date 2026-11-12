@@ -1,0 +1,40 @@
+# Versione Windows: prove e installatore su una macchina Windows vera.
+# Parte a mano (Actions › Windows › Run workflow) o a ogni modifica di windows/. L'installatore resta fra gli artefatti
+# della corsa: la release la pubblica Scripts/pubblica-windows.sh dopo averlo firmato sul Mac.
+name: Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+      - run: npm ci
+      - name: Motore (dalla release motore-onnx-1)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run motore
+      - name: Controllo dei tipi
+        run: npm run typecheck
+      - name: Prove
+        run: npm test
+      - name: Installatore
+        run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnoniMaiker-Windows
+          path: windows/dist/*.exe
+          retention-days: 14

@@ -16,14 +16,15 @@
 
 <p align="center">
   <a href="https://github.com/ivanmosetti07/AnoniMaiker/releases/latest"><b>Scarica per macOS</b></a> ·
+  <a href="https://github.com/ivanmosetti07/AnoniMaiker/releases/download/windows-v0.15/AnoniMaiker-Setup-0.15.exe"><b>Scarica per Windows</b></a> ·
   <a href="#scaricare-e-installare">Installazione</a> ·
   <a href="#compilare-dal-codice">Compilare dal codice</a>
 </p>
 
-AnoniMaiker è un'app gratuita e open source per macOS, un prodotto MaikerHub. Anonimizza testi e file direttamente sul Mac: nomi, aziende,
+AnoniMaiker è un'app gratuita e open source per macOS e Windows, un prodotto MaikerHub. Anonimizza testi e file direttamente sul computer: nomi, aziende,
 codici fiscali, IBAN, email e telefoni diventano segnaposto come `[FULLNAME_1]`, `[IBAN_1]` o `[ORG_1]`. Il testo
 anonimizzato si può dare a ChatGPT, Claude o a qualsiasi altra AI, e la risposta torna con i dati veri. Ha un CRM per i
-clienti e una chat con GPT che usa il tuo abbonamento ChatGPT. I dati personali non lasciano mai il Mac.
+clienti e una chat con GPT che usa il tuo abbonamento ChatGPT. I dati personali non lasciano mai il computer.
 
 ```
 Mario Rossi, IBAN IT60X054…   →   [FULLNAME_1], IBAN [IBAN_1]   →   AI   →   Gentile Mario Rossi, …
@@ -38,6 +39,24 @@ Mario Rossi, IBAN IT60X054…   →   [FULLNAME_1], IBAN [IBAN_1]   →   AI   �
 
 Requisiti: macOS 26 o successivo, Mac con Apple Silicon o Intel. Il download pesa circa 570 MB perché il motore di
 anonimizzazione è dentro l'app.
+
+### Su Windows
+
+1. Scarica **[AnoniMaiker-Setup-0.15.exe](https://github.com/ivanmosetti07/AnoniMaiker/releases/download/windows-v0.15/AnoniMaiker-Setup-0.15.exe)**
+   (tutte le versioni: [release per Windows](https://github.com/ivanmosetti07/AnoniMaiker/releases?q=windows)).
+2. Aprilo: si installa da solo nel tuo utente, senza permessi di amministratore, con le icone nel menu Start e sul
+   desktop.
+3. La prima volta Windows può dire «Windows ha protetto il PC», perché l'installatore non ha un certificato a
+   pagamento. Premi **Ulteriori informazioni**, poi **Esegui comunque**.
+
+Requisiti: Windows 10 o 11 a 64 bit. Il download pesa circa 650 MB perché il motore di anonimizzazione è dentro l'app.
+È la stessa app del Mac, con le stesse funzioni: progetti, anonimizzazione, documenti, CRM, dizionario, chat e
+aggiornamenti dall'app. I dati restano cifrati sul PC (la chiave è protetta da Windows e legata al tuo utente).
+
+- **Portare i dati dal Mac al PC (o viceversa):** sul Mac File › Crea copia di sicurezza, poi sul PC File › Ripristina da
+  una copia di sicurezza. Le copie di sicurezza sono le stesse sui due sistemi.
+- **Differenze:** sul PC i PDF scansionati non passano dall'OCR (solo i PDF con testo); per la chat serve Node.js
+  ([nodejs.org](https://nodejs.org)), con cui l'app installa Codex al primo collegamento.
 
 Al primo avvio una **guida** spiega in pochi passi come funziona e aiuta a fare le prime cose: la copia di sicurezza, il
 primo progetto, il primo file, la chat. Si riapre da Aiuto › Guida di AnoniMaiker.
@@ -178,6 +197,34 @@ aggiornamenti». Se si perde, le app già installate non accettano più aggiorna
 copia. Chi fa un fork genera la sua chiave con `swift run firma-rilascio genera` e cambia `Updates.repository` e
 `Updates.publicKey`.
 
+### La versione per Windows
+
+La versione Windows sta in `windows/`: la stessa app riscritta in TypeScript su Electron (la libreria in
+`windows/src/core`, lo stato dell'app in `windows/src/preload`, l'interfaccia React in `windows/src/renderer`). Il
+motore è lo stesso modello, convertito in ONNX (`npm run motore` lo scarica dalla release `motore-onnx-1`).
+
+```bash
+cd windows && npm install && npm run motore
+```
+
+```bash
+cd windows && npm test
+```
+
+```bash
+cd windows && npm run dev
+```
+
+Un comando pubblica una versione Windows, firmata con la stessa chiave degli aggiornamenti del Mac:
+
+```bash
+Scripts/pubblica-windows.sh 0.15 novita.md
+```
+
+Crea il tag `windows-v0.15` e una release con `AnoniMaiker-Setup-0.15.exe` e la sua firma, che **non** diventa
+«latest»: le app Mac continuano a trovare lì il DMG. Le app Windows cercano solo le release `windows-v…`. Il workflow
+`.github/workflows/windows.yml` fa le prove e l'installatore anche su una macchina Windows vera.
+
 ### Il DMG
 
 L'icona è in `App/AppIcon.icon`, nel formato di Icon Composer: un foglio con un segnaposto `[•••]` al posto di una
@@ -233,6 +280,8 @@ anonimizzazione», e la licenza MIT sta in `App/Risorse/Licenze.md`.
 | `App/AppIcon.icon` | L'icona (Icon Composer) |
 | `App/Risorse/Licenze.md` | Licenze di terze parti, incluse nell'app |
 | `Brand/` | Logotipo, simbolo, colori e regole del marchio |
+| `windows/` | La versione per Windows (Electron, TypeScript, motore ONNX) |
+| `Scripts/pubblica-windows.sh` | Versione, test, installatore Windows, firma, release su GitHub |
 
 ## Compilare dal codice
 
