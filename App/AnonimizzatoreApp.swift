@@ -23,6 +23,8 @@ struct AnonimizzatoreApp: App {
         }
         // Niente barra del titolo: il logo sta in cima alla barra laterale, come su Windows.
         .windowStyle(.hiddenTitleBar)
+        // Senza la barra del titolo la finestra si sposta trascinando le zone vuote.
+        .windowBackgroundDragBehavior(.enabled)
         .defaultSize(width: 1200, height: 760)
         .commands {
             // Una finestra sola: niente «Nuova finestra».
