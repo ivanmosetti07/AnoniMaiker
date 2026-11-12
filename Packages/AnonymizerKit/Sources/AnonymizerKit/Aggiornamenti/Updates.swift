@@ -40,7 +40,7 @@ public enum Updates {
     public static var releasesPage: URL { URL(string: "https://github.com/\(repository)/releases")! }
 
     /// La chiave pubblica con cui sono firmati i DMG (Ed25519, base64). La privata sta nel portachiavi di chi pubblica.
-    public static let publicKey = "Pp4atww+p9VoIY8YL4BrUffunyN50jk0FBGtPkCIEGE="
+    public static let publicKey = "uEtnwSuiBKAh2sxtHb6hXOiTyxm315Pmq53CwfTrIcQ="
 
     public enum UpdateError: LocalizedError, Equatable {
         case network(String)

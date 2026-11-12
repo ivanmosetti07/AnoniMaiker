@@ -91,7 +91,7 @@ export class Updates {
   static readonly tagPrefix = "windows-";
 
   /// La chiave pubblica con cui sono firmati gli aggiornamenti (Ed25519, base64): la stessa del Mac.
-  static readonly publicKey = "Pp4atww+p9VoIY8YL4BrUffunyN50jk0FBGtPkCIEGE=";
+  static readonly publicKey = "uEtnwSuiBKAh2sxtHb6hXOiTyxm315Pmq53CwfTrIcQ=";
 
   // MARK: Versioni
 
